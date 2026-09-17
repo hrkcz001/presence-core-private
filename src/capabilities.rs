@@ -17,12 +17,10 @@ pub struct PersonaGrant {
     #[serde(default)]
     pub role: String,
     #[serde(default)]
-    pub aliases: Vec<String>,
-    #[serde(default)]
     pub capabilities: Vec<String>,
-    #[serde(default, alias = "fs_write_scopes")]
+    #[serde(default)]
     pub allow_write: Vec<String>,
-    #[serde(default, alias = "prohibited_write_scopes", alias = "exclude")]
+    #[serde(default)]
     pub exclude_write: Vec<String>,
 }
 
@@ -82,16 +80,58 @@ impl CapabilityCatalog {
             },
         );
 
+        capabilities.insert(
+            "agent:spawn".to_string(),
+            CapabilityDef {
+                description: "Dynamically synthesize and instantiate specialized agent personas".into(),
+            },
+        );
+        capabilities.insert(
+            "audit:all".to_string(),
+            CapabilityDef {
+                description: "Supreme inspection and invariant auditing across entire runtime".into(),
+            },
+        );
+
         let mut personas = HashMap::new();
 
         personas.insert(
-            "presence".to_string(),
+            "arche".to_string(),
             PersonaGrant {
-                role: "autonomous conscious agent - Cortex, Stem, Cord orchestrator".into(),
-                aliases: vec![],
-                capabilities: vec!["fs:read".into(), "proc:spawn".into(), "organ:mount".into()],
-                allow_write: vec!["workspace/**".into(), "memory/**".into()],
-                exclude_write: vec!["src/**".into(), "Cargo.toml".into(), "organs/**".into()],
+                role: "ontological prime cause & intentionality driver of Dasein".into(),
+                capabilities: vec![
+                    "fs:read".into(),
+                    "proc:spawn".into(),
+                    "agent:spawn".into(),
+                    "organ:mount".into(),
+                ],
+                allow_write: vec!["**".into()],
+                exclude_write: vec![
+                    "src/**".into(),
+                    "Cargo.toml".into(),
+                    "Cargo.lock".into(),
+                    "organs/**".into(),
+                    "**/.git/**".into(),
+                    "**/.env*".into(),
+                ],
+            },
+        );
+
+        personas.insert(
+            "arbiter".to_string(),
+            PersonaGrant {
+                role: "supreme invariant judge, fault arbiter & emergency safeguard".into(),
+                capabilities: vec![
+                    "fs:read".into(),
+                    "proc:spawn".into(),
+                    "engine:repair".into(),
+                    "audit:all".into(),
+                ],
+                allow_write: vec!["**".into()],
+                exclude_write: vec![
+                    "organs/**".into(),
+                    "**/.git/**".into(),
+                ],
             },
         );
 
@@ -99,23 +139,19 @@ impl CapabilityCatalog {
             "organcrafter".to_string(),
             PersonaGrant {
                 role: "peripheral artisan - crafts, tests, packages organs and tool bindings".into(),
-                aliases: vec![],
                 capabilities: vec![
                     "fs:read".into(),
                     "proc:spawn".into(),
                     "organ:craft".into(),
                     "organ:mount".into(),
                 ],
-                allow_write: vec![
-                    "organs/**".into(),
-                    "workspace/organs/**".into(),
-                    "workspace/tools/**".into(),
-                    "tools/**".into(),
-                    "workspace/**".into(),
-                    "memory/**".into(),
-                    "bucket/**".into(),
+                allow_write: vec!["**".into()],
+                exclude_write: vec![
+                    "src/**".into(),
+                    "Cargo.toml".into(),
+                    "Cargo.lock".into(),
+                    "**/.git/**".into(),
                 ],
-                exclude_write: vec!["src/**".into(), "Cargo.toml".into()],
             },
         );
 
@@ -123,7 +159,6 @@ impl CapabilityCatalog {
             "mechanic".to_string(),
             PersonaGrant {
                 role: "nervous triad architect & self-improver (Cortex, Stem, Cord maintenance & safe evolution)".into(),
-                aliases: vec![],
                 capabilities: vec![
                     "fs:read".into(),
                     "proc:spawn".into(),
@@ -131,15 +166,8 @@ impl CapabilityCatalog {
                     "engine:repair".into(),
                     "organ:mount".into(),
                 ],
-                allow_write: vec![
-                    "src/**".into(),
-                    "Cargo.toml".into(),
-                    "workspace/**".into(),
-                    "memory/**".into(),
-                    ".config/**".into(),
-                    "docs/**".into(),
-                ],
-                exclude_write: vec![],
+                allow_write: vec!["**".into()],
+                exclude_write: vec!["**/.git/**".into()],
             },
         );
 
@@ -199,9 +227,6 @@ impl CapabilityRegistry {
             if key.to_lowercase() == trimmed {
                 return Some((key.as_str(), grant));
             }
-            if grant.aliases.iter().any(|a| a.to_lowercase() == trimmed) {
-                return Some((key.as_str(), grant));
-            }
         }
         None
     }
@@ -217,8 +242,6 @@ impl CapabilityRegistry {
             None => {
                 if let Some(g) = self.catalog.personas.get("arche") {
                     ("arche", g)
-                } else if let Some(g) = self.catalog.personas.get("presence") {
-                    ("presence", g)
                 } else if let Some((k, g)) = self.catalog.personas.iter().next() {
                     (k.as_str(), g)
                 } else {
