@@ -20,10 +20,10 @@ pub struct PersonaGrant {
     pub aliases: Vec<String>,
     #[serde(default)]
     pub capabilities: Vec<String>,
-    #[serde(default)]
-    pub fs_write_scopes: Vec<String>,
-    #[serde(default)]
-    pub prohibited_write_scopes: Vec<String>,
+    #[serde(default, alias = "fs_write_scopes")]
+    pub allow_write: Vec<String>,
+    #[serde(default, alias = "prohibited_write_scopes", alias = "exclude")]
+    pub exclude_write: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -90,8 +90,8 @@ impl CapabilityCatalog {
                 role: "autonomous conscious agent - Cortex, Stem, Cord orchestrator".into(),
                 aliases: vec![],
                 capabilities: vec!["fs:read".into(), "proc:spawn".into(), "organ:mount".into()],
-                fs_write_scopes: vec!["workspace/**".into(), "memory/**".into()],
-                prohibited_write_scopes: vec!["src/**".into(), "Cargo.toml".into(), "organs/**".into()],
+                allow_write: vec!["workspace/**".into(), "memory/**".into()],
+                exclude_write: vec!["src/**".into(), "Cargo.toml".into(), "organs/**".into()],
             },
         );
 
@@ -106,7 +106,7 @@ impl CapabilityCatalog {
                     "organ:craft".into(),
                     "organ:mount".into(),
                 ],
-                fs_write_scopes: vec![
+                allow_write: vec![
                     "organs/**".into(),
                     "workspace/organs/**".into(),
                     "workspace/tools/**".into(),
@@ -115,7 +115,7 @@ impl CapabilityCatalog {
                     "memory/**".into(),
                     "bucket/**".into(),
                 ],
-                prohibited_write_scopes: vec!["src/**".into(), "Cargo.toml".into()],
+                exclude_write: vec!["src/**".into(), "Cargo.toml".into()],
             },
         );
 
@@ -131,7 +131,7 @@ impl CapabilityCatalog {
                     "engine:repair".into(),
                     "organ:mount".into(),
                 ],
-                fs_write_scopes: vec![
+                allow_write: vec![
                     "src/**".into(),
                     "Cargo.toml".into(),
                     "workspace/**".into(),
@@ -139,7 +139,7 @@ impl CapabilityCatalog {
                     ".config/**".into(),
                     "docs/**".into(),
                 ],
-                prohibited_write_scopes: vec![],
+                exclude_write: vec![],
             },
         );
 
@@ -271,25 +271,23 @@ impl CapabilityRegistry {
             ));
         }
 
-        // 3. Check prohibited write scopes
-        for prohibited in &grant.prohibited_write_scopes {
-            if is_inside_root && matches_scope(prohibited, &rel_normalized) {
+        // 3. Check exclude_write (explicit exclusions inside allowed scopes)
+        for excluded in &grant.exclude_write {
+            if is_inside_root && matches_scope(excluded, &rel_normalized) {
                 return Err(format!(
-                    "permission denied: persona '{canonical_persona}' is prohibited from writing to scope '{prohibited}' ('{rel_normalized}')"
+                    "permission denied: persona '{canonical_persona}' is prohibited from writing to excluded scope '{excluded}' ('{rel_normalized}')"
                 ));
             }
         }
 
-        // 4. Check allowed write scopes if defined
-        if is_inside_root && !grant.fs_write_scopes.is_empty() {
-            let allowed = grant.fs_write_scopes.iter().any(|scope| matches_scope(scope, &rel_normalized));
+        // 4. Check allow_write (default-deny whitelist)
+        if is_inside_root && !grant.allow_write.is_empty() {
+            let allowed = grant.allow_write.iter().any(|scope| matches_scope(scope, &rel_normalized));
             if !allowed && !grant.capabilities.contains(&"engine:modify".to_string()) {
-                if is_engine_core || is_organ_dir {
-                    return Err(format!(
-                        "permission denied: persona '{canonical_persona}' write to '{rel_normalized}' outside allowed scopes: {:?}",
-                        grant.fs_write_scopes
-                    ));
-                }
+                return Err(format!(
+                    "permission denied: persona '{canonical_persona}' write to '{rel_normalized}' outside allowed scopes: {:?}",
+                    grant.allow_write
+                ));
             }
         }
 

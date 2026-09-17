@@ -31,14 +31,13 @@ personas:
       - "proc:spawn"
       - "agent:spawn"
       - "organ:mount"
-    fs_write_scopes:
+    allow_write:
       - "agents/**"
       - "workspace/**"
       - "memory/**"
-    prohibited_write_scopes:
-      - "src/**"
-      - "Cargo.toml"
-      - "organs/**"
+    exclude_write:
+      - "workspace/**/.git/**"
+      - "workspace/**/.env*"
 
   arbiter:
     role: "supreme invariant judge, fault arbiter & emergency safeguard"
@@ -47,11 +46,11 @@ personas:
       - "proc:spawn"
       - "engine:repair"
       - "audit:all"
-    fs_write_scopes:
+    allow_write:
       - "memory/**"
       - "workspace/**"
-    prohibited_write_scopes:
-      - "organs/**"
+    exclude_write:
+      - "workspace/**/.git/**"
 
   organcrafter:
     role: "peripheral artisan - crafts, tests, packages organs and tool bindings"
@@ -60,7 +59,7 @@ personas:
       - "proc:spawn"
       - "organ:craft"
       - "organ:mount"
-    fs_write_scopes:
+    allow_write:
       - "organs/**"
       - "workspace/organs/**"
       - "workspace/tools/**"
@@ -68,9 +67,9 @@ personas:
       - "workspace/**"
       - "memory/**"
       - "bucket/**"
-    prohibited_write_scopes:
-      - "src/**"
-      - "Cargo.toml"
+    exclude_write:
+      - "workspace/**/.git/**"
+      - "organs/**/.git/**"
 
   mechanic:
     role: "nervous triad architect & self-improver (Cortex, Stem, Cord maintenance & safe evolution)"
@@ -80,11 +79,12 @@ personas:
       - "engine:modify"
       - "engine:repair"
       - "organ:mount"
-    fs_write_scopes:
+    allow_write:
       - "src/**"
       - "Cargo.toml"
       - "workspace/**"
       - "memory/**"
       - ".config/**"
       - "docs/**"
-    prohibited_write_scopes: []
+    exclude_write:
+      - "workspace/**/.git/**"
