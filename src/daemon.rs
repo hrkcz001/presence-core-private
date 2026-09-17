@@ -1,4 +1,4 @@
-//! Reflex spine: the daemon (PLAN §9 arch B, §11.3). When a goal is
+﻿//! Reflex spine: the daemon (PLAN §9 arch B, §11.3). When a goal is
 //! active, `session/prompt` replies `end_turn` immediately and drops
 //! the message into a mailbox; the circle keeps running in this thread,
 //! streaming via out-of-turn session/update (S1-proven). Mailbox is
@@ -220,11 +220,13 @@ pub fn run(
             .map(|m| crate::budgeter::estimate(m.get("content").and_then(|c| c.as_str()).unwrap_or("")))
             .sum::<u64>();
         let status = crate::budgeter::status_line(est, limit, state.cycles, phase_now.name().to_lowercase().as_str());
+        let live_system = crate::prompt::build(&ctx.tool_ctx.desk, &ctx.tool_ctx.desk, &ctx.memory_dir);
+        let base_sys = if !live_system.trim().is_empty() { &live_system } else { &ctx.base_system };
         phase_messages[0] = json!({
             "role": "system",
             "content": format!("{}{}{}
 
-{}", ctx.base_system, grounding, phase::phase_prompt(phase_now), status),
+{}", base_sys, grounding, phase::phase_prompt(phase_now), status),
         });
         // pre-flight (PLAN s3): refuse to assemble over budget
         if est > limit {
