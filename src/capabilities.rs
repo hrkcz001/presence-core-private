@@ -1,4 +1,4 @@
-﻿//! Scoped Capabilities Engine for Presence.
+//! Scoped Capabilities Engine for Presence.
 //!
 //! Enforces path-scoped filesystem access, protected core runtime immutability,
 //! and role-based execution boundaries for specialized personas.
@@ -98,7 +98,7 @@ impl CapabilityCatalog {
         personas.insert(
             "arche".to_string(),
             PersonaGrant {
-                role: "ontological prime cause & intentionality driver of Dasein".into(),
+                role: "ontological prime cause & intentionality driver of Presence".into(),
                 capabilities: vec![
                     "fs:read".into(),
                     "proc:spawn".into(),
