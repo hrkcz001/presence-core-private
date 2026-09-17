@@ -1,0 +1,29 @@
+name: vox
+version: "0.1.0"
+description: "Native pure-Rust voice sensory and audio capture organ (cpal/WASAPI)"
+instructions: "Native pure-Rust audio organ. Use vox_listen to capture microphone audio stream directly via cpal/WASAPI."
+entrypoint: "bin/vox.exe"
+type: "cli"
+senses:
+  - name: hearing
+    description: "Raw PCM / audio capture stream"
+tools:
+  - name: vox_listen
+    description: "Capture microphone audio via pure-Rust cpal/WASAPI stream"
+    parameters:
+      type: object
+      properties:
+        seconds:
+          type: integer
+          description: "Recording duration in seconds"
+          default: 3
+        file:
+          type: string
+          description: "Destination PCM file path"
+      required: []
+commands:
+  - name: listen
+    tool: vox_listen
+    description: "Capture microphone audio via Rust vox"
+permissions:
+  timeout_seconds: 30

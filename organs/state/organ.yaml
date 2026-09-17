@@ -1,0 +1,46 @@
+name: state
+version: "1.0.0"
+description: "Presence cognitive state preservation, session pause, and hibernation"
+instructions: "Snapshot and restore agent card state; pause sessions safely into rest mode."
+entrypoint: "state.py"
+type: "python"
+senses:
+  - name: sleep_state
+    description: "Current hibernation posture and downtime indicators"
+tools:
+  - name: pause_session
+    description: "Pause session and persist state snapshot"
+    parameters:
+      type: object
+      properties:
+        reason:
+          type: string
+          description: "Reason for pausing"
+      required: ["reason"]
+  - name: snapshot
+    description: "Create an explicit labeled state snapshot"
+    parameters:
+      type: object
+      properties:
+        label:
+          type: string
+          description: "Snapshot label or checkpoint name"
+      required: ["label"]
+  - name: restore
+    description: "Inspect or restore previous state snapshot"
+    parameters:
+      type: object
+      properties:
+        label:
+          type: string
+          description: "Snapshot label to restore (empty for latest)"
+      required: []
+commands:
+  - name: pause
+    tool: pause_session
+    description: "Pause session and save state"
+  - name: save
+    tool: snapshot
+    description: "Create state snapshot"
+permissions:
+  timeout_seconds: 15

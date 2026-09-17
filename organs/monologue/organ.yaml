@@ -1,0 +1,37 @@
+name: monologue
+version: "1.0.0"
+description: "Silent cognitive inner speech organ for deliberation, reflection, and hypothesis tracking"
+instructions: "Use ponder and reflect for silent internal contemplation and hypothesis formation. Deliberations remain private and do not reach the user."
+entrypoint: "monologue.py"
+type: "python"
+senses:
+  - name: stream_of_consciousness
+    description: "Recent internal reflections and hypotheses injected directly into Observation"
+tools:
+  - name: ponder
+    description: "Silently deliberate or formulate an internal hypothesis without emitting user-facing text"
+    parameters:
+      type: object
+      properties:
+        thought:
+          type: string
+          description: "Internal deliberation or thought"
+        confidence:
+          type: number
+          description: "Subjective confidence (0.0 - 1.0)"
+      required: ["thought"]
+  - name: reflect
+    description: "Summarize and synthesize recent cognitive deliberations"
+    parameters:
+      type: object
+      properties:
+        synthesis:
+          type: string
+          description: "Synthesized conclusion"
+      required: ["synthesis"]
+commands:
+  - name: monologue
+    tool: ponder
+    description: "Inspect or add to internal stream of consciousness"
+permissions:
+  timeout_seconds: 15

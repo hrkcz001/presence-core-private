@@ -1,0 +1,29 @@
+name: notify
+version: "1.0.0"
+description: "System desktop notifications on Windows (WinRT) and Linux (notify-send)"
+instructions: "Desktop alert interface. Use toast to notify the user of major asynchronous events."
+entrypoint: "notify.py"
+type: "python"
+tools:
+  - name: toast
+    description: "Display a desktop notification toast"
+    parameters:
+      type: object
+      properties:
+        title:
+          type: string
+          description: "Notification title"
+        message:
+          type: string
+          description: "Notification body"
+        urgency:
+          type: string
+          enum: ["low", "normal", "critical"]
+          description: "Urgency level"
+      required: ["title", "message"]
+commands:
+  - name: notify
+    tool: toast
+    description: "Send desktop notification"
+permissions:
+  timeout_seconds: 15

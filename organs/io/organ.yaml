@@ -1,0 +1,52 @@
+name: io
+version: "1.0.0"
+description: "Physical input/output and filesystem manipulation organ"
+instructions: "Filesystem interaction. Use read_file, write_file, and list_files for file I/O operations."
+entrypoint: "io.py"
+type: "python"
+senses:
+  - name: fs_changes
+    description: "Recent modifications in workspace files"
+tools:
+  - name: read_file
+    description: "Read full text content of a file"
+    parameters:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "Path to file to read"
+      required: ["path"]
+  - name: write_file
+    description: "Write full text content to a file, auto-creating parent directories"
+    parameters:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "Target file path"
+        content:
+          type: string
+          description: "File content to write"
+      required: ["path", "content"]
+  - name: list_files
+    description: "List directory contents"
+    parameters:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "Directory path"
+          default: "."
+      required: []
+commands:
+  - name: cat
+    tool: read_file
+    description: "Read file contents"
+  - name: ls
+    tool: list_files
+    description: "List directory files"
+permissions:
+  filesystem_read: true
+  filesystem_write: true
+  timeout_seconds: 15

@@ -1,0 +1,47 @@
+name: git
+version: "1.0.0"
+description: "Non-interactive structured version control organ"
+instructions: "Structured non-interactive Git operations. Use git_checkpoint after coherent edits."
+entrypoint: "git.py"
+type: "python"
+senses:
+  - name: git_status
+    description: "Working tree state and modified files"
+tools:
+  - name: git_status
+    description: "Get structured repository status"
+    parameters:
+      type: object
+      properties:
+        action: { type: string, enum: ["status"], default: "status" }
+      required: []
+  - name: git_checkpoint
+    description: "Stage and commit changes non-interactively"
+    parameters:
+      type: object
+      properties:
+        action: { type: string, enum: ["checkpoint"], default: "checkpoint" }
+        message: { type: string, description: "Commit message" }
+        path: { type: string, description: "Target path" }
+      required: ["message"]
+  - name: git_diff
+    description: "Inspect unstaged diffs"
+    parameters:
+      type: object
+      properties:
+        action: { type: string, enum: ["diff"], default: "diff" }
+      required: []
+  - name: git_log
+    description: "Inspect recent commit history"
+    parameters:
+      type: object
+      properties:
+        action: { type: string, enum: ["log"], default: "log" }
+        max_count: { type: integer, default: 5 }
+      required: []
+commands:
+  - name: git
+    tool: git_status
+    description: "Inspect git status"
+permissions:
+  timeout_seconds: 30

@@ -1,0 +1,26 @@
+name: winsense
+version: "1.0.0"
+description: "Windows environment sensory organ (active window, user idle, power/battery)"
+entrypoint: "winsense.exe"
+type: "cli"
+senses:
+  - name: active_window
+    description: "Foreground window title and process ID"
+  - name: idle_time
+    description: "User idle duration in seconds"
+  - name: power_state
+    description: "Battery and AC power state"
+tools:
+  - name: inspect_window
+    description: "Query current active window or open applications"
+    parameters:
+      type: object
+      properties:
+        action: { type: string, enum: ["foreground", "windows", "overview", "idle", "power", "audio"] }
+      required: []
+commands:
+  - name: win
+    tool: inspect_window
+    description: "Inspect active window and environment"
+permissions:
+  timeout_seconds: 10

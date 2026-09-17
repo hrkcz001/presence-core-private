@@ -1,0 +1,33 @@
+﻿[package]
+name = "presence"
+version = "0.3.0"
+edition = "2021"
+
+[[bin]]
+name = "presence"
+path = "src/main.rs"
+
+[[bin]]
+name = "package"
+path = "src/bin/package.rs"
+
+[[bin]]
+name = "winsense"
+path = "src/bin/winsense.rs"
+
+[[bin]]
+name = "stem"
+path = "src/bin/stem.rs"
+
+[[bin]]
+name = "heartbeat"
+path = "src/bin/heartbeat.rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+tempfile = "3"

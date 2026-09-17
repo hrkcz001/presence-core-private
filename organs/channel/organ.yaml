@@ -1,0 +1,38 @@
+name: channel
+version: "1.0.0"
+description: "External communication interface organ (CLI clients, terminal channels, message inbox/outbox)"
+instructions: "Use send_reply to transmit conscious answers and final verdicts back to the active user/client. Do not dump loose prose without this tool."
+entrypoint: "channel.py"
+type: "python"
+senses:
+  - name: incoming_inbox
+    description: "Pending incoming user inquiries and CLI requests"
+tools:
+  - name: send_reply
+    description: "Send a structured message or response back to the requesting CLI or chat client"
+    parameters:
+      type: object
+      properties:
+        message:
+          type: string
+          description: "Text content to deliver to the client"
+        channel:
+          type: string
+          description: "Target channel id (default: 'active')"
+          default: "active"
+      required: ["message"]
+  - name: send_status
+    description: "Report intermediate progress or state update to the connected client"
+    parameters:
+      type: object
+      properties:
+        status:
+          type: string
+          description: "Status message"
+      required: ["status"]
+commands:
+  - name: reply
+    tool: send_reply
+    description: "Send reply to connected client"
+permissions:
+  timeout_seconds: 15

@@ -1,0 +1,41 @@
+name: plan
+version: "1.0.0"
+description: "Goal formulation, active intent, roadmap execution, and session journal"
+instructions: "Maintain active intent via plan_step (bound to active agent card) and record major cognitive milestones via journal_append."
+entrypoint: "plan.py"
+type: "python"
+senses:
+  - name: standing_intent
+    description: "Active plan step and current milestone directly injected into Observation"
+tools:
+  - name: plan_step
+    description: "Inspect or advance current plan step"
+    parameters:
+      type: object
+      properties:
+        action:
+          type: string
+          enum: ["show", "next", "set", "complete"]
+          description: "Action on plan"
+        step:
+          type: string
+          description: "Step description or id (when action is set or complete)"
+      required: ["action"]
+  - name: journal_append
+    description: "Append a session finding or milestone to memory/journal.md"
+    parameters:
+      type: object
+      properties:
+        entry:
+          type: string
+          description: "Journal entry text"
+      required: ["entry"]
+commands:
+  - name: plan
+    tool: plan_step
+    description: "Show or advance plan"
+  - name: journal
+    tool: journal_append
+    description: "Append milestone to journal"
+permissions:
+  timeout_seconds: 15
