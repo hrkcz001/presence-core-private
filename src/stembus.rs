@@ -13,6 +13,8 @@ pub struct ActiveStimulus {
     pub description: Option<String>,
     pub cadence_secs: u64,
     pub action: String,
+    #[serde(default)]
+    pub target_agent: Option<String>,
     #[serde(skip)]
     pub tool: Option<DiscoveredTool>,
     pub last_polled: u64,
@@ -24,6 +26,8 @@ pub struct StimulusEvent {
     pub stimulus_name: String,
     pub triggered: bool,
     pub action: String,
+    #[serde(default)]
+    pub target_agent: Option<String>,
     pub data: Value,
 }
 
@@ -94,6 +98,7 @@ impl StemBus {
                     description: s.description.clone(),
                     cadence_secs: s.cadence_secs.unwrap_or(30),
                     action: s.action.clone().unwrap_or_else(|| "alert".to_string()),
+                    target_agent: s.target_agent.clone(),
                     tool: Some(t.clone()),
                     last_polled: 0,
                 });
@@ -151,6 +156,7 @@ impl StemBus {
             stimulus_name: stim.stimulus_name.clone(),
             triggered,
             action: stim.action.clone(),
+            target_agent: stim.target_agent.clone(),
             data: parsed,
         })
     }
@@ -182,12 +188,14 @@ mod tests {
                     description: Some("Sensor test".into()),
                     cadence_secs: Some(15),
                     action: Some("modulate_pulse".into()),
+target_agent: Some("arche".into()),
                 },
                 OrganStimulusDef {
                     name: "temperature_spike".into(),
                     description: Some("Thermal monitor".into()),
                     cadence_secs: Some(60),
                     action: Some("alert".into()),
+target_agent: Some("mechanic".into()),
                 },
             ],
             reflexes: vec![],

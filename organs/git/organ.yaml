@@ -48,9 +48,11 @@ stimuli:
     description: "Emitted when working directory has uncommitted drift"
     cadence_secs: 60
     action: "alert"
+    target_agent: "coder"
   - name: git_upstream_behind
     description: "Emitted when local branch is behind remote tracking branch"
     cadence_secs: 300
     action: "alert"
+    target_agent: "coder"
 permissions:
   timeout_seconds: 30

@@ -51,10 +51,12 @@ stimuli:
     description: "Emitted when free disk space falls below threshold (5 GB)"
     cadence_secs: 60
     action: "alert"
+    target_agent: "mechanic"
   - name: workspace_bloat
     description: "Emitted when temporary workspace files exceed threshold (500 MB)"
     cadence_secs: 300
     action: "alert"
+    target_agent: "mechanic"
 permissions:
   filesystem_read: true
   filesystem_write: true

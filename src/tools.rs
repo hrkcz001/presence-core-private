@@ -86,6 +86,8 @@ pub struct OrganStimulusDef {
     pub cadence_secs: Option<u64>,
     #[serde(default)]
     pub action: Option<String>,
+    #[serde(default)]
+    pub target_agent: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
@@ -383,7 +385,7 @@ pub fn defs() -> Vec<Value> {
             "type": "function",
             "function": {
                 "name": "tune_stimuli",
-                "description": "Dynamically inspect, snooze, disable, or enable vegetative stimuli (e.g. disk_space_low, git_dirty_drift, user_idle, battery_low).",
+                "description": "Manual override to inspect, snooze, disable, or enable vegetative stimuli. NOTE: For recurring patterns or automated handling, prefer registering runtime Cord reflexes so reactions execute deterministically at 0 tokens without waking Cortex.",
                 "parameters": {"type": "object", "properties": {
                     "stimulus": {"type": "string", "description": "Target stimulus name or 'all'"},
                     "action": {"type": "string", "enum": ["snooze", "enable", "disable", "status"], "description": "Action to perform"},
@@ -934,7 +936,7 @@ pub fn execute(ctx: &ToolCtx, name: &str, args: &Value) -> String {
                     if let Err(e) = crate::stembus::save_stimuli_overrides(&stimuli_path, &overrides) {
                         return format!("tune_stimuli error saving overrides: {e}");
                     }
-                    format!("Successfully snoozed stimulus '{stimulus}' for {duration} seconds (until {snooze_until}).")
+                    format!("Successfully snoozed stimulus '{stimulus}' for {duration} seconds (until {snooze_until}). (Tip: Prefer Cord reflexes for autonomous resolution)")
                 }
                 "disable" => {
                     if stimulus.is_empty() {

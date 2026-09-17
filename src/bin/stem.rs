@@ -53,6 +53,7 @@ struct Alarm {
     fire_at: u64,
     reason: String,
     origin: String,
+    target_agent: Option<String>,
     line: String, // original jsonl, preserved verbatim on rewrite
 }
 
@@ -114,7 +115,8 @@ fn main() {
                         "id": alarm_id,
                         "fire_at": now,
                         "reason": "Battery critical (<15%), conscious intervention required",
-                        "origin": "vitals"
+                        "origin": "vitals",
+                        "target_agent": ev.target_agent
                     });
                     if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&alarms_path) {
                         let _ = writeln!(f, "{alert_alarm}");
@@ -149,7 +151,8 @@ fn main() {
                         "id": alarm_id,
                         "fire_at": now,
                         "reason": "Disk space critically low (< 5GB), storage cleanup advised",
-                        "origin": "io"
+                        "origin": "io",
+                        "target_agent": ev.target_agent
                     });
                     if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&alarms_path) {
                         let _ = writeln!(f, "{alert_alarm}");
@@ -163,7 +166,8 @@ fn main() {
                         "id": alarm_id,
                         "fire_at": now,
                         "reason": "Uncommitted git drift detected, checkpoint advised",
-                        "origin": "git"
+                        "origin": "git",
+                        "target_agent": ev.target_agent
                     });
                     if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&alarms_path) {
                         let _ = writeln!(f, "{alert_alarm}");
@@ -178,7 +182,8 @@ fn main() {
                         "id": alarm_id,
                         "fire_at": now,
                         "reason": format!("Git branch is behind remote by {behind} commits, fetch/pull advised"),
-                        "origin": "git"
+                        "origin": "git",
+                        "target_agent": ev.target_agent
                     });
                     if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&alarms_path) {
                         let _ = writeln!(f, "{alert_alarm}");
@@ -192,7 +197,8 @@ fn main() {
                         "id": alarm_id,
                         "fire_at": now,
                         "reason": "Active goals in GOALS.md idle for >12 hours",
-                        "origin": "state"
+                        "origin": "state",
+                        "target_agent": ev.target_agent
                     });
                     if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&alarms_path) {
                         let _ = writeln!(f, "{alert_alarm}");
@@ -307,7 +313,8 @@ fn read_alarms(path: &Path) -> Scan {
                 let fire_at = v.get("fire_at")?.as_u64()?;
                 let reason = v.get("reason").and_then(|x| x.as_str()).unwrap_or("").to_string();
                 let origin = v.get("origin").and_then(|x| x.as_str()).unwrap_or("self").to_string();
-                Some(Alarm { id, fire_at, reason, origin, line: t.to_string() })
+                let target_agent = v.get("target_agent").and_then(|x| x.as_str()).map(String::from);
+                Some(Alarm { id, fire_at, reason, origin, target_agent, line: t.to_string() })
             });
         match parsed {
             Some(a) => scan.alarms.push(a),

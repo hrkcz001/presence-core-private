@@ -47,5 +47,6 @@ stimuli:
     description: "Emitted when active goals in GOALS.md remain unupdated for > 12 hours"
     cadence_secs: 900
     action: "alert"
+    target_agent: "arche"
 permissions:
   timeout_seconds: 15
