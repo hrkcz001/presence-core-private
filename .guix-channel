@@ -1,0 +1,6 @@
+﻿;; Presence GNU Guix Channel
+(channel
+  (version 0)
+  (directory "guix")
+  (url "https://github.com/hrkcz001/presence.git")
+  (branch "main"))

@@ -57,7 +57,7 @@ pub fn current_persona(ctx: &ToolCtx) -> String {
             }
         }
     }
-    "presence".to_string()
+    "arche".to_string()
 }
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct OrganToolDef {
@@ -241,13 +241,35 @@ pub fn discover_dynamic_tools() -> Vec<DiscoveredTool> {
         }
     }
 
-    // 4. Nix Profiles (Linux / macOS / NixOS)
+    // 4. User and Config Organs
     if let Some(home) = dirs_home() {
-        search_dirs.push(home.join(".nix-profile/share/presence/tools"));
+        search_dirs.push(home.join(".presence/organs"));
+        search_dirs.push(home.join(".config/presence/organs"));
+    }
+
+    // 5. Nix Profiles (Linux / macOS / NixOS)
+    if let Some(home) = dirs_home() {
+        search_dirs.push(home.join(".nix-profile/share/presence/organs"));
         search_dirs.push(home.join(".nix-profile/share/presence/tools"));
     }
+    search_dirs.push(PathBuf::from("/nix/var/nix/profiles/default/share/presence/organs"));
     search_dirs.push(PathBuf::from("/nix/var/nix/profiles/default/share/presence/tools"));
-    search_dirs.push(PathBuf::from("/nix/var/nix/profiles/default/share/presence/tools"));
+    search_dirs.push(PathBuf::from("/run/current-system/sw/share/presence/organs"));
+
+    // 6. GNU Guix Profiles
+    if let Some(home) = dirs_home() {
+        search_dirs.push(home.join(".guix-profile/share/presence/organs"));
+        search_dirs.push(home.join(".guix-profile/share/presence/tools"));
+    }
+    search_dirs.push(PathBuf::from("/run/current-system/profile/share/presence/organs"));
+    search_dirs.push(PathBuf::from("/run/current-system/profile/share/presence/tools"));
+
+    // 7. PRESENCE_ORGANS_PATH override
+    if let Ok(env_paths) = std::env::var("PRESENCE_ORGANS_PATH") {
+        for p in std::env::split_paths(&env_paths) {
+            search_dirs.push(p);
+        }
+    }
 
     discover_manifests_in_dirs(&search_dirs)
 }
@@ -575,6 +597,26 @@ fn run_cmd_output(mut cmd: Command) -> String {
     }
 }
 
+fn which_cmd(cmd: &str) -> bool {
+    if let Some(paths) = std::env::var_os("PATH") {
+        for p in std::env::split_paths(&paths) {
+            let direct = p.join(cmd);
+            if direct.is_file() {
+                return true;
+            }
+            #[cfg(windows)]
+            {
+                let with_exe = p.join(format!("{cmd}.exe"));
+                let with_cmd = p.join(format!("{cmd}.cmd"));
+                if with_exe.is_file() || with_cmd.is_file() {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
 pub fn execute_dynamic_tool(tool: &DiscoveredTool, args: &Value) -> String {
     let manifest = &tool.manifest;
     let entry_name = manifest.entrypoint.as_deref().unwrap_or(manifest.name.as_str());
@@ -614,18 +656,37 @@ pub fn execute_dynamic_tool(tool: &DiscoveredTool, args: &Value) -> String {
 
     let is_python = manifest.r#type.as_deref() == Some("python")
         || entry_path.extension().and_then(|e| e.to_str()) == Some("py");
+    let is_ts = manifest.r#type.as_deref() == Some("typescript")
+        || entry_path.extension().and_then(|e| e.to_str()) == Some("ts");
+    let is_js = manifest.r#type.as_deref() == Some("javascript")
+        || entry_path.extension().and_then(|e| e.to_str()) == Some("js");
 
     let mut cmd = if is_python {
         let mut c = Command::new("python");
         c.env("PATH", build_agent_path());
         c.arg(&entry_path);
         c
+    } else if is_ts || is_js {
+        let runner = if which_cmd("bun") {
+            "bun"
+        } else if which_cmd("qjs") {
+            "qjs"
+        } else if which_cmd("deno") {
+            "deno"
+        } else {
+            "node"
+        };
+        let mut c = Command::new(runner);
+        c.env("PATH", build_agent_path());
+        if runner == "deno" {
+            c.arg("run").arg("-A");
+        }
+        c.arg(&entry_path);
+        c
     } else {
-        {
         let mut c = Command::new(&entry_path);
         c.env("PATH", build_agent_path());
         c
-    }
     };
 
     if manifest.name == "webfetch" {
@@ -736,7 +797,7 @@ pub fn execute(ctx: &ToolCtx, name: &str, args: &Value) -> String {
             execute_package_manager(action, package)
         }
         "switch_agent" => {
-            let agent_name = args.get("agent_name").and_then(Value::as_str).unwrap_or("presence").trim();
+            let agent_name = args.get("agent_name").and_then(Value::as_str).unwrap_or("arche").trim();
             if agent_name.is_empty() {
                 return "switch_agent: agent_name cannot be empty".to_string();
             }

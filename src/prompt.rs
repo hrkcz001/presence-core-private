@@ -1,4 +1,4 @@
-//! System prompt assembly. Constitution (live workspace files) + operational
+﻿//! System prompt assembly. Constitution (live workspace files) + operational
 //! part. main.rs calls build().
 
 use std::path::Path;
@@ -20,7 +20,7 @@ pub fn active_persona(root: &Path, memory_dir: &Path) -> String {
             return s.to_string();
         }
     }
-    "presence".to_string()
+    "arche".to_string()
 }
 
 /// Constitution: rules, machine notes, active agent card (embedding state), and
@@ -36,8 +36,8 @@ fn constitution(root: &Path, memory_dir: &Path) -> String {
     let agent_candidates = [
         format!("agents/{persona}.agent.md"),
         format!("seed/agents/{persona}.agent.md"),
-        "agents/presence.agent.md".to_string(),
-        "seed/agents/presence.agent.md".to_string(),
+        "agents/arche.agent.md".to_string(),
+        "seed/agents/arche.agent.md".to_string(),
     ];
     for cand in &agent_candidates {
         if let Some(s) = read_if_exists(&root.join(cand)) {

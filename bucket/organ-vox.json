@@ -1,0 +1,20 @@
+﻿{
+  "version": "1.0.0",
+  "description": "Pure-Rust native voice organ for Presence (WASAPI audio & speech synthesis)",
+  "homepage": "https://github.com/hrkcz001/presence",
+  "license": "MIT",
+  "depends": "presence",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/hrkcz001/presence/releases/download/v0.3.0/organ-vox.zip",
+      "hash": "skip"
+    }
+  },
+  "post_install": [
+    "$target = \"$env:USERPROFILE\\.presence\\organs\\vox\";",
+    "if (Test-Path $target) { Remove-Item -Recurse -Force $target; }",
+    "New-Item -ItemType Directory -Force (Split-Path $target) | Out-Null;",
+    "Copy-Item -Recurse -Force \"$dir\" $target;",
+    "Write-Host 'Organ vox mounted to' $target -ForegroundColor Green;"
+  ]
+}

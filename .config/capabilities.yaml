@@ -13,25 +13,44 @@ capabilities:
     description: "Define, build, test, and package peripheral organs and tool manifests"
   "organ:mount":
     description: "Mount and bind peripheral organs into the active runtime"
+  "agent:spawn":
+    description: "Dynamically synthesize and instantiate specialized agent personas"
   "engine:modify":
     description: "Modify core nervous triad (src/**, Cargo.toml, engine binaries)"
   "engine:repair":
     description: "Diagnose, test, and safely self-repair / evolve core runtime"
+  "audit:all":
+    description: "Supreme inspection and invariant auditing across entire runtime"
 
 # Persona assignments
 personas:
-  presence:
-    role: "autonomous conscious agent - Cortex, Stem, Cord orchestrator"
+  arche:
+    role: "ontological prime cause & intentionality driver of Dasein"
     capabilities:
       - "fs:read"
       - "proc:spawn"
+      - "agent:spawn"
       - "organ:mount"
     fs_write_scopes:
+      - "agents/**"
       - "workspace/**"
       - "memory/**"
     prohibited_write_scopes:
       - "src/**"
       - "Cargo.toml"
+      - "organs/**"
+
+  arbiter:
+    role: "supreme invariant judge, fault arbiter & emergency safeguard"
+    capabilities:
+      - "fs:read"
+      - "proc:spawn"
+      - "engine:repair"
+      - "audit:all"
+    fs_write_scopes:
+      - "memory/**"
+      - "workspace/**"
+    prohibited_write_scopes:
       - "organs/**"
 
   organcrafter:

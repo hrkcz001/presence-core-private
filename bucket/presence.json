@@ -1,0 +1,31 @@
+﻿{
+  "version": "0.3.0",
+  "description": "Autonomous Dasein Cognitive Agent System - Cortex, Stem, Cord & Organs",
+  "homepage": "https://github.com/hrkcz001/presence",
+  "license": "MIT",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/hrkcz001/presence/releases/download/v0.3.0/presence-x86_64-pc-windows-msvc.zip",
+      "hash": "skip"
+    }
+  },
+  "bin": [
+    "bin\\presence.exe",
+    "bin\\stem.exe",
+    "bin\\winsense.exe",
+    "bin\\heartbeat.exe"
+  ],
+  "persist": [
+    ".config",
+    "memory"
+  ],
+  "post_install": [
+    "$ws = \"$env:USERPROFILE\\.presence\";",
+    "if (!(Test-Path $ws)) { New-Item -ItemType Directory -Force $ws | Out-Null; }",
+    "if (!(Test-Path \"$ws\\organs\")) { New-Item -ItemType Directory -Force \"$ws\\organs\" | Out-Null; }",
+    "if (!(Test-Path \"$ws\\memory\")) { New-Item -ItemType Directory -Force \"$ws\\memory\" | Out-Null; }",
+    "if (!(Test-Path \"$ws\\.config\")) { New-Item -ItemType Directory -Force \"$ws\\.config\" | Out-Null; }",
+    "if (Test-Path \"$dir\\seed\") { Copy-Item -Recurse -Force \"$dir\\seed\\*\" $ws; }",
+    "Write-Host 'Presence Dasein environment initialized at' $ws -ForegroundColor Green;"
+  ]
+}

@@ -215,7 +215,15 @@ impl CapabilityRegistry {
         let (canonical_persona, grant) = match self.find_persona(persona) {
             Some(res) => res,
             None => {
-                ("presence", self.catalog.personas.get("presence").expect("presence default"))
+                if let Some(g) = self.catalog.personas.get("arche") {
+                    ("arche", g)
+                } else if let Some(g) = self.catalog.personas.get("presence") {
+                    ("presence", g)
+                } else if let Some((k, g)) = self.catalog.personas.iter().next() {
+                    (k.as_str(), g)
+                } else {
+                    return Err("No persona configured in capability catalog".into());
+                }
             }
         };
 
@@ -327,41 +335,48 @@ mod tests {
     use super::*;
 
     #[test]
-    fn presence_cannot_modify_src() {
+    fn arche_cannot_modify_src_or_cargo_toml() {
         let reg = CapabilityRegistry::new();
         let root = Path::new("C:/workspace");
         let target = Path::new("C:/workspace/src/main.rs");
-        let res = reg.check_write_permission("presence", target, root);
+        let res = reg.check_write_permission("arche", target, root);
         assert!(res.is_err());
         assert!(res.unwrap_err().contains("engine:modify"));
+
+        let target_cargo = Path::new("C:/workspace/Cargo.toml");
+        let res_cargo = reg.check_write_permission("arche", target_cargo, root);
+        assert!(res_cargo.is_err());
+        assert!(res_cargo.unwrap_err().contains("engine:modify"));
     }
 
     #[test]
-    fn presence_cannot_modify_cargo_toml() {
-        let reg = CapabilityRegistry::new();
-        let root = Path::new("C:/workspace");
-        let target = Path::new("C:/workspace/Cargo.toml");
-        let res = reg.check_write_permission("presence", target, root);
-        assert!(res.is_err());
-        assert!(res.unwrap_err().contains("engine:modify"));
-    }
-
-    #[test]
-    fn presence_cannot_modify_organs() {
+    fn arche_cannot_modify_organs() {
         let reg = CapabilityRegistry::new();
         let root = Path::new("C:/workspace");
         let target = Path::new("C:/workspace/organs/vox/organ.yaml");
-        let res = reg.check_write_permission("presence", target, root);
+        let res = reg.check_write_permission("arche", target, root);
         assert!(res.is_err());
         assert!(res.unwrap_err().contains("organ:craft"));
     }
 
     #[test]
-    fn presence_can_write_workspace_and_memory() {
+    fn arche_can_write_agents_workspace_and_memory() {
         let reg = CapabilityRegistry::new();
         let root = Path::new("C:/workspace");
-        assert!(reg.check_write_permission("presence", Path::new("C:/workspace/workspace/doc.md"), root).is_ok());
-        assert!(reg.check_write_permission("presence", Path::new("C:/workspace/memory/journal.md"), root).is_ok());
+        assert!(reg.check_write_permission("arche", Path::new("C:/workspace/agents/researcher.agent.md"), root).is_ok());
+        assert!(reg.check_write_permission("arche", Path::new("C:/workspace/workspace/doc.md"), root).is_ok());
+        assert!(reg.check_write_permission("arche", Path::new("C:/workspace/memory/journal.md"), root).is_ok());
+    }
+
+    #[test]
+    fn arbiter_can_write_workspace_and_memory_but_not_organs() {
+        let reg = CapabilityRegistry::new();
+        let root = Path::new("C:/workspace");
+        assert!(reg.check_write_permission("arbiter", Path::new("C:/workspace/workspace/audit.md"), root).is_ok());
+        assert!(reg.check_write_permission("arbiter", Path::new("C:/workspace/memory/incident.md"), root).is_ok());
+
+        let res_organ = reg.check_write_permission("arbiter", Path::new("C:/workspace/organs/vox/organ.yaml"), root);
+        assert!(res_organ.is_err());
     }
 
     #[test]
@@ -389,7 +404,7 @@ mod tests {
         let reg = CapabilityRegistry::new();
         let root = Path::new("C:/workspace");
         let target = Path::new("C:/workspace/workspace/../src/main.rs");
-        let res = reg.check_write_permission("presence", target, root);
+        let res = reg.check_write_permission("arche", target, root);
         assert!(res.is_err());
         assert!(res.unwrap_err().contains("engine:modify"));
     }
