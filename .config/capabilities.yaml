@@ -32,12 +32,14 @@ personas:
       - "agent:spawn"
       - "organ:mount"
     allow_write:
-      - "agents/**"
-      - "workspace/**"
-      - "memory/**"
+      - "**"
     exclude_write:
-      - "workspace/**/.git/**"
-      - "workspace/**/.env*"
+      - "src/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "organs/**"
+      - "**/.git/**"
+      - "**/.env*"
 
   arbiter:
     role: "supreme invariant judge, fault arbiter & emergency safeguard"
@@ -47,10 +49,10 @@ personas:
       - "engine:repair"
       - "audit:all"
     allow_write:
-      - "memory/**"
-      - "workspace/**"
+      - "**"
     exclude_write:
-      - "workspace/**/.git/**"
+      - "organs/**"
+      - "**/.git/**"
 
   organcrafter:
     role: "peripheral artisan - crafts, tests, packages organs and tool bindings"
@@ -60,16 +62,12 @@ personas:
       - "organ:craft"
       - "organ:mount"
     allow_write:
-      - "organs/**"
-      - "workspace/organs/**"
-      - "workspace/tools/**"
-      - "tools/**"
-      - "workspace/**"
-      - "memory/**"
-      - "bucket/**"
+      - "**"
     exclude_write:
-      - "workspace/**/.git/**"
-      - "organs/**/.git/**"
+      - "src/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "**/.git/**"
 
   mechanic:
     role: "nervous triad architect & self-improver (Cortex, Stem, Cord maintenance & safe evolution)"
@@ -80,11 +78,6 @@ personas:
       - "engine:repair"
       - "organ:mount"
     allow_write:
-      - "src/**"
-      - "Cargo.toml"
-      - "workspace/**"
-      - "memory/**"
-      - ".config/**"
-      - "docs/**"
+      - "**"
     exclude_write:
-      - "workspace/**/.git/**"
+      - "**/.git/**"

@@ -315,6 +315,17 @@ fn matches_scope(pattern: &str, path: &str) -> bool {
     if clean_pat == "*" || clean_pat == "**" {
         return true;
     }
+    if let Some(rest) = clean_pat.strip_prefix("**/") {
+        if let Some(dir) = rest.strip_suffix("/**") {
+            return path.split('/').any(|seg| seg == dir)
+                || path.contains(&format!("/{dir}/"))
+                || path.starts_with(&format!("{dir}/"));
+        }
+        if let Some(prefix) = rest.strip_suffix('*') {
+            return path.split('/').any(|seg| seg.starts_with(prefix));
+        }
+        return path.split('/').any(|seg| seg == rest);
+    }
     if let Some(prefix) = clean_pat.strip_suffix("/**") {
         return path == prefix || path.starts_with(&format!("{prefix}/"));
     }
@@ -324,6 +335,9 @@ fn matches_scope(pattern: &str, path: &str) -> bool {
             return !rest.contains('/');
         }
         return false;
+    }
+    if let Some(prefix) = clean_pat.strip_suffix('*') {
+        return path.starts_with(prefix);
     }
     clean_pat == path
 }
