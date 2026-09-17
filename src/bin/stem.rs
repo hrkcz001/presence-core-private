@@ -69,19 +69,52 @@ fn main() {
     let interval: u64 = env_num("PRESENCE_HEARTBEAT_INTERVAL_SECS", cfg().heartbeat.interval_secs);
     let max_wakes: u64 = env_num("PRESENCE_HEARTBEAT_MAXWAKES", cfg().heartbeat.max_wakes);
     let debounce: u64 = env_num("PRESENCE_HEARTBEAT_ATTEMPT_DEBOUNCE_SECS", cfg().heartbeat.cap_secs);
+    let idle_interval: u64 = (interval * 6).max(30);
+    let mut current_interval: u64 = interval;
+
+    let mut stembus = presence::stembus::StemBus::discover();
 
     let mut voice_cursor = latest_voice(&heard).map(|(ts, _)| ts).unwrap_or(0);
     let mut last_act: u64 = 0;
     let mut last_beat: u64 = now();
     let mut attempts: HashMap<String, (u32, u64)> = HashMap::new(); // id -> (tries, last try)
-    log_line(&log, "start", &format!("watching {} cursor {voice_cursor}", mem.display()));
-    eprintln!("heartbeat: watching {} (voice cursor {voice_cursor})", mem.display());
+    log_line(&log, "start", &format!("watching {} cursor {voice_cursor} ({} stimuli active)", mem.display(), stembus.stimuli.len()));
+    eprintln!("stem: watching {} (voice cursor {voice_cursor}, {} stimuli active)", mem.display(), stembus.stimuli.len());
 
     let mut wakes: u64 = 0;
     loop {
-        std::thread::sleep(Duration::from_secs(interval));
+        std::thread::sleep(Duration::from_secs(current_interval));
         wakes += 1;
         let now = now();
+
+        // --- autonomous vegetative stimuli via StemBus ---
+        let stimulus_events = stembus.poll_due(now);
+        for ev in stimulus_events {
+            if ev.stimulus_name == "user_idle" {
+                if ev.triggered {
+                    if current_interval != idle_interval {
+                        log_line(&log, "modulate_pulse", &format!("user idle threshold reached -> slowing pulse to {idle_interval}s"));
+                        current_interval = idle_interval;
+                    }
+                } else if current_interval != interval {
+                    log_line(&log, "modulate_pulse", &format!("user presence restored -> accelerating pulse to {interval}s"));
+                    current_interval = interval;
+                }
+            } else if ev.stimulus_name == "battery_low" && ev.triggered {
+                log_line(&log, "stimulus_alert", "battery low (<15%) triggered");
+                current_interval = interval;
+                let alarm_id = "alarm:stimulus:battery_low".to_string();
+                let alert_alarm = serde_json::json!({
+                    "id": alarm_id,
+                    "fire_at": now,
+                    "reason": "Battery critical (<15%), conscious intervention required",
+                    "origin": "vitals"
+                });
+                if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&alarms_path) {
+                    let _ = writeln!(f, "{alert_alarm}");
+                }
+            }
+        }
 
         // --- scan triggers ---
         // (reason, rate-capped?, alarm id to consume on act)
