@@ -77,6 +77,23 @@ pub struct OrganSenseDef {
     pub poll_mode: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct OrganStimulusDef {
+    pub name: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub cadence_secs: Option<u64>,
+    #[serde(default)]
+    pub action: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct OrganReflexDef {
+    pub on: String,
+    pub action: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolManifest {
     pub name: String,
@@ -99,6 +116,10 @@ pub struct ToolManifest {
     pub permissions: ToolPermissions,
     #[serde(default)]
     pub commands: Vec<Value>,
+    #[serde(default)]
+    pub stimuli: Vec<OrganStimulusDef>,
+    #[serde(default)]
+    pub reflexes: Vec<OrganReflexDef>,
 }
 
 impl ToolManifest {
