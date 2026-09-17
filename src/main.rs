@@ -22,6 +22,7 @@ mod vitals;
 mod winsense;
 mod capabilities;
 mod senses;
+mod sandbox;
 
 use llm::Bridge;
 use serde::{Deserialize, Serialize};
