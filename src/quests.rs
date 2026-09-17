@@ -1,4 +1,4 @@
-// Quest journal (owner request): standing goals with priorities.
+﻿// Quest journal (owner request): standing goals with priorities.
 // The circle pulls ONE quest at a time (top priority); unclear
 // ranking -> ask the owner. Journal lives in memory/quests.jsonl.
 
@@ -135,7 +135,7 @@ pub fn name_quest(bridge: &mut crate::llm::Bridge, url: &str, key: &str, model: 
     let out = crate::agent_loop(
         bridge, url, key, model,
         &mut msgs, &vec![], std::sync::Arc::new(crate::tools::ToolCtx {
-            desk: ".".into(), pinned: Default::default(), senses_mask: Default::default(),
+            desk: ".".into(), ..Default::default()
         }), "naming", std::path::Path::new("nul"), "naming", 1,
     );
     if let Ok(t) = out {

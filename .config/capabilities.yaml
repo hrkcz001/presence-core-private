@@ -1,0 +1,73 @@
+# Presence Scoped Capabilities Catalog & Persona Grants
+version: "1.0"
+
+# Formal definition of capability tokens
+capabilities:
+  "fs:read":
+    description: "Read files across workspace and system paths"
+  "fs:write":
+    description: "Write files scoped to explicit path patterns"
+  "proc:spawn":
+    description: "Execute bounded subprocess commands"
+  "organ:craft":
+    description: "Define, build, test, and package peripheral organs and tool manifests"
+  "organ:mount":
+    description: "Mount and bind peripheral organs into the active runtime"
+  "engine:modify":
+    description: "Modify core nervous triad (src/**, Cargo.toml, engine binaries)"
+  "engine:repair":
+    description: "Diagnose, test, and safely self-repair / evolve core runtime"
+
+# Persona assignments
+personas:
+  presence:
+    role: "autonomous conscious agent - Cortex, Stem, Cord orchestrator"
+    capabilities:
+      - "fs:read"
+      - "proc:spawn"
+      - "organ:mount"
+    fs_write_scopes:
+      - "workspace/**"
+      - "memory/**"
+    prohibited_write_scopes:
+      - "src/**"
+      - "Cargo.toml"
+      - "organs/**"
+
+  organcrafter:
+    role: "peripheral artisan - crafts, tests, packages organs and tool bindings"
+    aliases:
+      - "toolcrafter"
+    capabilities:
+      - "fs:read"
+      - "proc:spawn"
+      - "organ:craft"
+      - "organ:mount"
+    fs_write_scopes:
+      - "organs/**"
+      - "workspace/organs/**"
+      - "workspace/tools/**"
+      - "tools/**"
+      - "workspace/**"
+      - "memory/**"
+      - "bucket/**"
+    prohibited_write_scopes:
+      - "src/**"
+      - "Cargo.toml"
+
+  mechanic:
+    role: "nervous triad architect & self-improver (Cortex, Stem, Cord maintenance & safe evolution)"
+    capabilities:
+      - "fs:read"
+      - "proc:spawn"
+      - "engine:modify"
+      - "engine:repair"
+      - "organ:mount"
+    fs_write_scopes:
+      - "src/**"
+      - "Cargo.toml"
+      - "workspace/**"
+      - "memory/**"
+      - ".config/**"
+      - "docs/**"
+    prohibited_write_scopes: []

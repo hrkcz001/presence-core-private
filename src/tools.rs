@@ -1,4 +1,4 @@
-//! Tool set v0 (PLAN §6). OpenAI tool definitions + executor.
+﻿//! Tool set v0 (PLAN §6). OpenAI tool definitions + executor.
 //! write_file is desk-scoped (step 15): paths resolve under the desk
 //! root, no escape. run_command is bounded: 30s timeout, output capped.
 //! Reads are unrestricted. Brain writes are runtime-owned, never here.
@@ -20,10 +20,11 @@ pub struct ToolCtx {
     pub desk: PathBuf,
     /// Pinned excerpts shared with the daemon (context.pin/evict).
     pub pinned: std::sync::Mutex<std::collections::HashMap<String, String>>,
-    /// Speaking window (unix ts start, end) — echo avoidance: the ear
+    /// Speaking window (unix ts start, end) - echo avoidance: the ear
     /// skips utterances inside it.
     /// Dynamic sensory organ overrides (attunement / sensory gating).
     pub senses_mask: std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, bool>>>,
+    pub persona: Option<String>,
 }
 
 impl Default for ToolCtx {
@@ -31,12 +32,33 @@ impl Default for ToolCtx {
         Self {
             desk: PathBuf::from("."),
             pinned: Default::default(),
-            
             senses_mask: Default::default(),
+            persona: None,
         }
     }
 }
 
+pub fn current_persona(ctx: &ToolCtx) -> String {
+    if let Some(ref p) = ctx.persona {
+        return p.clone();
+    }
+    let mem_cand = ctx.desk.join("memory/agent.active");
+    if let Ok(s) = std::fs::read_to_string(mem_cand) {
+        let trimmed = s.trim();
+        if !trimmed.is_empty() {
+            return trimmed.to_string();
+        }
+    }
+    if let Some(mem) = cfg().memory_dir_path() {
+        if let Ok(s) = std::fs::read_to_string(mem.join("agent.active")) {
+            let trimmed = s.trim();
+            if !trimmed.is_empty() {
+                return trimmed.to_string();
+            }
+        }
+    }
+    "presence".to_string()
+}
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct OrganToolDef {
     pub name: String,
@@ -297,7 +319,7 @@ pub fn defs() -> Vec<Value> {
             "type": "function",
             "function": {
                 "name": "switch_agent",
-                "description": "Switch the active agent persona (e.g. 'presence', 'toolcrafter'). Updates memory/agent.active and loads the persona card immediately.",
+                "description": "Switch the active agent persona (e.g. 'presence', 'organcrafter', 'mechanic'). Updates memory/agent.active and loads the persona card immediately.",
                 "parameters": {"type": "object", "properties": {
                     "agent_name": {"type": "string", "description": "Name of the persona to activate"}
                 }, "required": ["agent_name"]}
@@ -777,6 +799,11 @@ pub fn execute(ctx: &ToolCtx, name: &str, args: &Value) -> String {
             let content = args.get("content").and_then(Value::as_str).unwrap_or("");
             match resolve_write_path(ctx, path) {
                 Ok(target) => {
+                    let persona = current_persona(ctx);
+                    let registry = crate::capabilities::CapabilityRegistry::new();
+                    if let Err(e) = registry.check_write_permission(&persona, &target, &ctx.desk) {
+                        return format!("write_file error: {e}");
+                    }
                     if let Some(parent) = target.parent() {
                         if let Err(e) = std::fs::create_dir_all(parent) {
                             return format!("write_file error: {e}");
@@ -960,7 +987,7 @@ mod tests {
 
     fn ctx() -> (ToolCtx, tempfile::TempDir) {
         let dir = tempfile::tempdir().expect("tempdir");
-        (ToolCtx { desk: dir.path().to_path_buf(), pinned: Default::default(),  senses_mask: Default::default() }, dir)
+        (ToolCtx { desk: dir.path().to_path_buf(), ..Default::default() }, dir)
     }
 
     #[test]
@@ -1173,6 +1200,28 @@ print(f"ECHO: {args.msg}")
         assert!(tool_names.contains(&"ponder"), "ponder not in defs: {:?}", tool_names);
         assert!(tool_names.contains(&"vox_listen"), "vox_listen not in defs: {:?}", tool_names);
         assert!(tool_names.contains(&"send_reply"), "send_reply not in defs: {:?}", tool_names);
+    }
+
+    #[test]
+    fn test_write_file_capability_enforcement() {
+        let (mut ctx, _g) = ctx();
+        ctx.persona = Some("presence".to_string());
+        let out_src = execute(&ctx, "write_file", &serde_json::json!({"path": "src/main.rs", "content": "// fail"}));
+        assert!(out_src.contains("engine:modify"), "expected error on src, got: {out_src}");
+
+        let out_organ = execute(&ctx, "write_file", &serde_json::json!({"path": "organs/vox/organ.yaml", "content": "// fail"}));
+        assert!(out_organ.contains("organ:craft"), "expected error on organs, got: {out_organ}");
+
+        ctx.persona = Some("organcrafter".to_string());
+        let out_org_craft = execute(&ctx, "write_file", &serde_json::json!({"path": "organs/test/organ.yaml", "content": "name: test"}));
+        assert!(out_org_craft.starts_with("wrote"), "expected success for organcrafter, got: {out_org_craft}");
+
+        let out_org_src = execute(&ctx, "write_file", &serde_json::json!({"path": "src/main.rs", "content": "// fail"}));
+        assert!(out_org_src.contains("engine:modify"), "organcrafter must not edit src: {out_org_src}");
+
+        ctx.persona = Some("mechanic".to_string());
+        let out_mech = execute(&ctx, "write_file", &serde_json::json!({"path": "src/phase.rs", "content": "// ok"}));
+        assert!(out_mech.starts_with("wrote"), "mechanic should be able to write to src: {out_mech}");
     }
 
 }

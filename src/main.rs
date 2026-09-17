@@ -1,4 +1,4 @@
-//! presence — presence's own body. ACP agent server (Rust).
+﻿//! presence — presence's own body. ACP agent server (Rust).
 //! M2: tools (read_file, write_file desk-scoped, list_files,
 //! run_command bounded) + OpenAI tool-call loop through the bridge +
 //! exact token ledger. System prompt: system constitution + operational
@@ -20,6 +20,7 @@ mod quests;
 mod tools;
 mod vitals;
 mod winsense;
+mod capabilities;
 mod senses;
 
 use llm::Bridge;
@@ -527,7 +528,7 @@ fn main() {
 
     let desk = cfg.desk_path();
     let _ = std::fs::create_dir_all(&desk);
-            let tool_ctx = Arc::new(tools::ToolCtx { desk: desk.clone(), pinned: Default::default(), senses_mask: Default::default() });
+            let tool_ctx = Arc::new(tools::ToolCtx { desk: desk.clone(), ..Default::default() });
 
     let daemons: Arc<Mutex<HashMap<String, std::sync::mpsc::Sender<daemon::Mail>>>> =
         Arc::new(Mutex::new(HashMap::new()));
