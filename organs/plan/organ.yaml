@@ -1,5 +1,5 @@
 ﻿name: plan
-version: "1.0.0"
+version: "0.3.0"
 description: "Goal formulation, active intent, roadmap execution, and session journal"
 instructions: "Maintain active intent via plan_step (bound to active agent card) and record major cognitive milestones via journal_append."
 entrypoint: "plan.ts"
@@ -39,3 +39,6 @@ commands:
     description: "Append milestone to journal"
 permissions:
   timeout_seconds: 15
+compatibility:
+  presence: "^0.3.0"
+  api_version: 1

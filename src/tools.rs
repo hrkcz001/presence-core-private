@@ -3,6 +3,7 @@
 //! root, no escape. run_command is bounded: 30s timeout, output capped.
 //! Reads are unrestricted. Brain writes are runtime-owned, never here.
 
+use semver::{Version, VersionReq};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::io::Read;
@@ -96,6 +97,44 @@ pub struct OrganReflexDef {
     pub action: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct OrganCompatibility {
+    #[serde(default)]
+    pub presence: Option<String>,
+    #[serde(default)]
+    pub api_version: Option<u32>,
+    #[serde(default)]
+    pub platforms: Option<Vec<String>>,
+    #[serde(default)]
+    pub features: Option<Vec<String>>,
+}
+
+impl OrganCompatibility {
+    pub fn validate(&self, host_presence_version: &str) -> Result<(), String> {
+        if let Some(req_str) = &self.presence {
+            let req = VersionReq::parse(req_str)
+                .map_err(|e| format!("Invalid SemVer presence constraint '{req_str}': {e}"))?;
+            let host_ver = Version::parse(host_presence_version)
+                .map_err(|e| format!("Invalid host presence version '{host_presence_version}': {e}"))?;
+            if !req.matches(&host_ver) {
+                return Err(format!(
+                    "Presence version requirement '{req_str}' not satisfied by host '{host_presence_version}'"
+                ));
+            }
+        }
+        if let Some(platforms) = &self.platforms {
+            let os = std::env::consts::OS;
+            if !platforms.iter().any(|p| p.eq_ignore_ascii_case(os)) {
+                return Err(format!(
+                    "Platform '{os}' is not supported; required: {:?}",
+                    platforms
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolManifest {
     pub name: String,
@@ -122,9 +161,23 @@ pub struct ToolManifest {
     pub stimuli: Vec<OrganStimulusDef>,
     #[serde(default)]
     pub reflexes: Vec<OrganReflexDef>,
+    #[serde(default)]
+    pub compatibility: Option<OrganCompatibility>,
+    #[serde(default)]
+    pub core: Option<bool>,
+    #[serde(default)]
+    pub ui: Option<Value>,
 }
 
 impl ToolManifest {
+    pub fn is_compatible(&self) -> Result<(), String> {
+        if let Some(compat) = &self.compatibility {
+            compat.validate(env!("CARGO_PKG_VERSION"))
+        } else {
+            Ok(())
+        }
+    }
+
     pub fn slash_commands(&self) -> Vec<String> {
         let mut cmds = vec![self.name.to_lowercase()];
         for c in &self.commands {
@@ -226,8 +279,8 @@ pub fn discover_dynamic_tools() -> Vec<DiscoveredTool> {
     search_dirs.push(PathBuf::from("tools"));
     search_dirs.push(PathBuf::from("../../workspace/tools"));
 
-    if let Ok(PRESENCE_WORKSPACE) = std::env::var("PRESENCE_WORKSPACE").or_else(|_| std::env::var("PRESENCE_WORKSPACE")).or_else(|_| std::env::var("PRESENCE_WORKSPACE")).or_else(|_| std::env::var("PRESENCE_WORKSPACE")) {
-        let root = PathBuf::from(PRESENCE_WORKSPACE);
+    if let Ok(presence_workspace) = std::env::var("PRESENCE_WORKSPACE") {
+        let root = PathBuf::from(presence_workspace);
         search_dirs.push(root.join("workspace/tools"));
         search_dirs.push(root.join("tools"));
     }
@@ -306,6 +359,10 @@ pub fn discover_manifests_in_dirs(dirs: &[PathBuf]) -> Vec<DiscoveredTool> {
             if let Ok(content) = std::fs::read_to_string(manifest_path) {
                 let clean_content = content.trim_start_matches('\u{feff}');
                 if let Ok(manifest) = serde_yaml::from_str::<ToolManifest>(clean_content) {
+                    if let Err(reason) = manifest.is_compatible() {
+                        eprintln!("presence: organ '{}' skipped (incompatible): {reason}", manifest.name);
+                        return;
+                    }
                     if !seen.contains(&manifest.name) {
                         seen.insert(manifest.name.clone());
                         discovered.push(DiscoveredTool {
@@ -695,11 +752,11 @@ pub fn execute_dynamic_tool(tool: &DiscoveredTool, args: &Value) -> String {
             candidates.push(home.join("scoop/shims").join(format!("{entry_name}.exe")));
             candidates.push(home.join("scoop/shims").join(entry_name));
         }
-        let PRESENCE_WORKSPACE = std::env::var("PRESENCE_WORKSPACE")
+        let presence_workspace = std::env::var("PRESENCE_WORKSPACE")
             .or_else(|_| std::env::var("PRESENCE_WORKSPACE"))
             .map(PathBuf::from)
             .unwrap_or_else(|_| PathBuf::from("."));
-        candidates.push(PRESENCE_WORKSPACE.join("tools").join(&manifest.name).join(entry_name));
+        candidates.push(presence_workspace.join("tools").join(&manifest.name).join(entry_name));
 
         candidates.into_iter().find(|p| p.exists()).unwrap_or_else(|| tool.dir.join(entry_name))
     };
@@ -719,20 +776,12 @@ pub fn execute_dynamic_tool(tool: &DiscoveredTool, args: &Value) -> String {
         c.arg(&entry_path);
         c
     } else if is_ts || is_js {
-        let runner = if which_cmd("bun") {
-            "bun"
-        } else if which_cmd("qjs") {
-            "qjs"
-        } else if which_cmd("deno") {
-            "deno"
-        } else {
-            "node"
-        };
-        let mut c = Command::new(runner);
-        c.env("PATH", build_agent_path());
-        if runner == "deno" {
-            c.arg("run").arg("-A");
+        if !which_cmd("bun") {
+            return format!("tool '{}' execution error: 'bun' runtime is required for TypeScript organs. Install via scoop install bun or bun.sh", manifest.name);
         }
+        let mut c = Command::new("bun");
+        c.env("PATH", build_agent_path());
+        c.arg("run");
         c.arg(&entry_path);
         c
     } else {
@@ -1243,6 +1292,48 @@ pub fn execute(ctx: &ToolCtx, name: &str, args: &Value) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn test_organ_compatibility_pass() {
+        let manifest_yaml = r#"
+name: test_compat
+description: Test organ
+compatibility:
+  presence: "^0.3.0"
+  api_version: 1
+"#;
+        let manifest: ToolManifest = serde_yaml::from_str(manifest_yaml).unwrap();
+        assert!(manifest.is_compatible().is_ok());
+    }
+
+    #[test]
+    fn test_organ_compatibility_fail_version() {
+        let manifest_yaml = r#"
+name: test_future
+description: Test future organ
+compatibility:
+  presence: ">=1.0.0"
+"#;
+        let manifest: ToolManifest = serde_yaml::from_str(manifest_yaml).unwrap();
+        let res = manifest.is_compatible();
+        assert!(res.is_err());
+        assert!(res.unwrap_err().contains("not satisfied"));
+    }
+
+    #[test]
+    fn test_organ_compatibility_fail_platform() {
+        let wrong_platform = if cfg!(windows) { "linux" } else { "windows" };
+        let manifest_yaml = format!(r#"
+name: test_wrong_os
+description: Test wrong OS organ
+compatibility:
+  platforms: ["{}"]
+"#, wrong_platform);
+        let manifest: ToolManifest = serde_yaml::from_str(&manifest_yaml).unwrap();
+        let res = manifest.is_compatible();
+        assert!(res.is_err());
+        assert!(res.unwrap_err().contains("Platform"));
+    }
+
 
     #[test]
     fn test_detect_package_manager() {

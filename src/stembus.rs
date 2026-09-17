@@ -199,6 +199,9 @@ target_agent: Some("mechanic".into()),
                 },
             ],
             reflexes: vec![],
+            compatibility: None,
+            core: None,
+            ui: None,
         };
 
         let discovered = vec![DiscoveredTool {

@@ -1,5 +1,5 @@
 name: git
-version: "1.0.0"
+version: "0.3.0"
 description: "Non-interactive structured version control organ"
 instructions: "Structured non-interactive Git operations. Use git_checkpoint after coherent edits."
 entrypoint: "git.ts"
@@ -56,3 +56,6 @@ stimuli:
     target_agent: "coder"
 permissions:
   timeout_seconds: 30
+compatibility:
+  presence: "^0.3.0"
+  api_version: 1

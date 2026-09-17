@@ -1,5 +1,5 @@
 ﻿name: notify
-version: "1.0.0"
+version: "0.3.0"
 description: "System desktop notifications on Windows (WinRT) and Linux (notify-send)"
 instructions: "Desktop alert interface. Use toast to notify the user of major asynchronous events."
 entrypoint: "notify.ts"
@@ -27,3 +27,6 @@ commands:
     description: "Send desktop notification"
 permissions:
   timeout_seconds: 15
+compatibility:
+  presence: "^0.3.0"
+  api_version: 1

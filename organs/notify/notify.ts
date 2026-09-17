@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env bun
 import { spawnSync } from "node:child_process";
 import * as os from "node:os";
 import * as process from "node:process";

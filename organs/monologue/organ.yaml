@@ -1,5 +1,5 @@
 ﻿name: monologue
-version: "1.0.0"
+version: "0.3.0"
 description: "Silent cognitive inner speech organ for deliberation, reflection, and hypothesis tracking"
 instructions: "Use ponder and reflect for silent internal contemplation and hypothesis formation. Deliberations remain private and do not reach the user."
 entrypoint: "monologue.ts"
@@ -35,3 +35,6 @@ commands:
     description: "Inspect or add to internal stream of consciousness"
 permissions:
   timeout_seconds: 15
+compatibility:
+  presence: "^0.3.0"
+  api_version: 1

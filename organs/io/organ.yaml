@@ -1,5 +1,5 @@
 name: io
-version: "1.0.0"
+version: "0.3.0"
 description: "Physical input/output and filesystem manipulation organ"
 instructions: "Filesystem interaction. Use read_file, write_file, and list_files for file I/O operations."
 entrypoint: "io.ts"
@@ -61,3 +61,6 @@ permissions:
   filesystem_read: true
   filesystem_write: true
   timeout_seconds: 15
+compatibility:
+  presence: "^0.3.0"
+  api_version: 1
