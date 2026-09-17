@@ -77,6 +77,7 @@ fn main() {
     let mut voice_cursor = latest_voice(&heard).map(|(ts, _)| ts).unwrap_or(0);
     let mut last_act: u64 = 0;
     let mut last_beat: u64 = now();
+    let mut brainless_mode = false;
     let mut attempts: HashMap<String, (u32, u64)> = HashMap::new(); // id -> (tries, last try)
     log_line(&log, "start", &format!("watching {} cursor {voice_cursor} ({} stimuli active)", mem.display(), stembus.stimuli.len()));
     eprintln!("stem: watching {} (voice cursor {voice_cursor}, {} stimuli active)", mem.display(), stembus.stimuli.len());
@@ -109,6 +110,63 @@ fn main() {
                     "fire_at": now,
                     "reason": "Battery critical (<15%), conscious intervention required",
                     "origin": "vitals"
+                });
+                if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&alarms_path) {
+                    let _ = writeln!(f, "{alert_alarm}");
+                }
+            } else if ev.stimulus_name == "network_state" {
+                let online = ev.data.get("online").and_then(|v| v.as_bool()).unwrap_or(true);
+                if !online && !brainless_mode {
+                    brainless_mode = true;
+                    log_line(&log, "network_offline", "internet offline -> entering vegetative brainless mode (LLM disabled)");
+                    eprintln!("stem: [VEGETATIVE] Internet disconnected. LLM Cortex disabled. Running in autonomous reflex/stem mode.");
+                } else if online && brainless_mode {
+                    brainless_mode = false;
+                    log_line(&log, "network_online", "internet restored -> conscious Cortex mode re-enabled");
+                    eprintln!("stem: [VEGETATIVE] Internet restored. Cortex consciousness enabled.");
+                }
+            } else if ev.stimulus_name == "display_locked" {
+                if ev.triggered && current_interval < idle_interval * 2 {
+                    log_line(&log, "modulate_pulse", "display locked -> deep sleep cadence (60s)");
+                    current_interval = idle_interval * 2;
+                }
+            } else if ev.stimulus_name == "high_cpu" && ev.triggered {
+                if current_interval < idle_interval {
+                    log_line(&log, "high_cpu", "CPU spike detected -> pacing pulse");
+                    current_interval = idle_interval;
+                }
+            } else if ev.stimulus_name == "disk_space_low" && ev.triggered {
+                log_line(&log, "stimulus_alert", "disk space critically low (< 5GB)");
+                let alarm_id = "alarm:stimulus:disk_space_low".to_string();
+                let alert_alarm = serde_json::json!({
+                    "id": alarm_id,
+                    "fire_at": now,
+                    "reason": "Disk space critically low (< 5GB), storage cleanup advised",
+                    "origin": "io"
+                });
+                if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&alarms_path) {
+                    let _ = writeln!(f, "{alert_alarm}");
+                }
+            } else if ev.stimulus_name == "git_dirty_drift" && ev.triggered {
+                log_line(&log, "stimulus_alert", "git working tree dirty drift");
+                let alarm_id = "alarm:stimulus:git_dirty_drift".to_string();
+                let alert_alarm = serde_json::json!({
+                    "id": alarm_id,
+                    "fire_at": now,
+                    "reason": "Uncommitted git drift detected, checkpoint advised",
+                    "origin": "git"
+                });
+                if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&alarms_path) {
+                    let _ = writeln!(f, "{alert_alarm}");
+                }
+            } else if ev.stimulus_name == "stale_goal" && ev.triggered {
+                log_line(&log, "stimulus_alert", "stale goals (>12h without update)");
+                let alarm_id = "alarm:stimulus:stale_goal".to_string();
+                let alert_alarm = serde_json::json!({
+                    "id": alarm_id,
+                    "fire_at": now,
+                    "reason": "Active goals in GOALS.md idle for >12 hours",
+                    "origin": "state"
                 });
                 if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&alarms_path) {
                     let _ = writeln!(f, "{alert_alarm}");
@@ -167,6 +225,13 @@ fn main() {
                     ));
                 }
             }
+        }
+
+        if brainless_mode {
+            if let Some((ref r, _, _)) = reason {
+                log_line(&log, "suppressed_offline", &format!("suppressed wake while offline: {r}"));
+            }
+            reason = None;
         }
 
         // --- decide & log ---

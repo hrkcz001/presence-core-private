@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 import { spawnSync } from "node:child_process";
 import * as process from "node:process";
 
@@ -168,6 +168,41 @@ function actionCheckpoint(message: string, filePath?: string): Record<string, un
 
 function main(): void {
   const args = parseArgs();
+
+  // Autonomous vegetative stimuli for Stem
+  if (args.stimulus) {
+    const stimulus = args.stimulus.toLowerCase();
+    let res: Record<string, unknown>;
+    if (stimulus === "git_dirty_drift") {
+      const st = actionStatus();
+      const isDirty = (st.staged && st.staged.length > 0) || (st.unstaged && st.unstaged.length > 0) || (st.untracked && st.untracked.length > 0);
+      const modifiedCount = (st.staged?.length || 0) + (st.unstaged?.length || 0) + (st.untracked?.length || 0);
+      res = {
+        status: "ok",
+        stimulus: "git_dirty_drift",
+        triggered: !!isDirty,
+        dirty_count: modifiedCount,
+        branch: st.branch,
+      };
+    } else if (stimulus === "git_upstream_behind") {
+      const behindRes = runGit(["rev-list", "--count", "HEAD..@{u}"]);
+      let behindCount = 0;
+      if (behindRes.code === 0) {
+        behindCount = parseInt(behindRes.stdout.trim(), 10) || 0;
+      }
+      res = {
+        status: "ok",
+        stimulus: "git_upstream_behind",
+        triggered: behindCount > 0,
+        behind_count: behindCount,
+      };
+    } else {
+      res = { status: "error", error: `Unknown stimulus: ${stimulus}` };
+    }
+    console.log(JSON.stringify(res, null, 2));
+    process.exit(res.status === "ok" ? 0 : 1);
+  }
+
   const action = (args.action || args.tool || "status").toLowerCase();
   const maxLines = args.max_lines ? parseInt(args.max_lines, 10) : 40;
 

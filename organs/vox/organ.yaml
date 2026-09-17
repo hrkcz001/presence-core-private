@@ -1,4 +1,4 @@
-﻿name: vox
+name: vox
 version: "1.0.0"
 author: "presence"
 description: "Native pure-Rust voice sensory and audio capture organ"
@@ -25,5 +25,10 @@ commands:
   - name: listen
     tool: vox_listen
     description: "Capture microphone audio via Rust vox"
+stimuli:
+  - name: voice_activity
+    description: "Emitted when microphone sound energy exceeds activation threshold"
+    cadence_secs: 5
+    action: "alert"
 permissions:
   timeout_seconds: 30

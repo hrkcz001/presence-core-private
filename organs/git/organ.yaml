@@ -1,4 +1,4 @@
-﻿name: git
+name: git
 version: "1.0.0"
 description: "Non-interactive structured version control organ"
 instructions: "Structured non-interactive Git operations. Use git_checkpoint after coherent edits."
@@ -43,5 +43,14 @@ commands:
   - name: git
     tool: git_status
     description: "Inspect git status"
+stimuli:
+  - name: git_dirty_drift
+    description: "Emitted when working directory has uncommitted drift"
+    cadence_secs: 60
+    action: "alert"
+  - name: git_upstream_behind
+    description: "Emitted when local branch is behind remote tracking branch"
+    cadence_secs: 300
+    action: "modulate_pulse"
 permissions:
   timeout_seconds: 30

@@ -1,4 +1,4 @@
-﻿name: io
+name: io
 version: "1.0.0"
 description: "Physical input/output and filesystem manipulation organ"
 instructions: "Filesystem interaction. Use read_file, write_file, and list_files for file I/O operations."
@@ -46,6 +46,15 @@ commands:
   - name: ls
     tool: list_files
     description: "List directory files"
+stimuli:
+  - name: disk_space_low
+    description: "Emitted when free disk space falls below threshold (5 GB)"
+    cadence_secs: 60
+    action: "alert"
+  - name: workspace_bloat
+    description: "Emitted when temporary workspace files exceed threshold (500 MB)"
+    cadence_secs: 300
+    action: "alert"
 permissions:
   filesystem_read: true
   filesystem_write: true

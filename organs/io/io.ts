@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as process from "node:process";
@@ -131,8 +131,64 @@ function senseFsChanges(sinceSeconds: number = 60): Record<string, unknown> {
   return { status: "ok", recent_changes: changed.slice(0, 20) };
 }
 
+function getDirSizeBytes(dir: string, maxDepth: number = 5): number {
+  if (!fs.existsSync(dir)) return 0;
+  let total = 0;
+  try {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const ent of entries) {
+      const full = path.join(dir, ent.name);
+      try {
+        if (ent.isDirectory() && maxDepth > 0) {
+          total += getDirSizeBytes(full, maxDepth - 1);
+        } else if (ent.isFile()) {
+          total += fs.statSync(full).size;
+        }
+      } catch {}
+    }
+  } catch {}
+  return total;
+}
+
 function main(): void {
   const args = parseArgs();
+
+  // Autonomous vegetative stimuli for Stem
+  if (args.stimulus) {
+    const stim = args.stimulus.toLowerCase();
+    let res: Record<string, unknown>;
+    if (stim === "disk_space_low") {
+      const stats = fs.statfsSync(process.cwd());
+      const freeBytes = stats.bavail * stats.bsize;
+      const freeGb = Math.round((freeBytes / (1024 * 1024 * 1024)) * 100) / 100;
+      const thresholdGb = parseFloat(args.threshold_gb || "5.0");
+      res = {
+        status: "ok",
+        stimulus: "disk_space_low",
+        free_gb: freeGb,
+        threshold_gb: thresholdGb,
+        triggered: freeGb <= thresholdGb,
+      };
+    } else if (stim === "workspace_bloat") {
+      const targetDir = args.dir ? resolvePath(args.dir) : path.join(process.cwd(), "workspace", "tmp");
+      const bytes = getDirSizeBytes(targetDir);
+      const mb = Math.round((bytes / (1024 * 1024)) * 100) / 100;
+      const thresholdMb = parseFloat(args.threshold_mb || "500.0");
+      res = {
+        status: "ok",
+        stimulus: "workspace_bloat",
+        target_dir: targetDir,
+        size_mb: mb,
+        threshold_mb: thresholdMb,
+        triggered: mb >= thresholdMb,
+      };
+    } else {
+      res = { status: "error", error: `Unknown stimulus: ${stim}` };
+    }
+    console.log(JSON.stringify(res, null, 2));
+    process.exit(res.status === "ok" ? 0 : 1);
+  }
+
   let op = (args.tool || args.action || "").toLowerCase();
 
   if (!op) {

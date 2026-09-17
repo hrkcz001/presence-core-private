@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as process from "node:process";
@@ -260,6 +260,56 @@ function senseState(): Record<string, unknown> {
 
 function main(): void {
   const args = parseArgs();
+
+  // Autonomous vegetative stimuli for Stem
+  if (args.stimulus) {
+    const stim = args.stimulus.toLowerCase();
+    let res: Record<string, unknown>;
+    if (stim === "stale_goal") {
+      const root = findWorkspaceRoot();
+      const possibleGoals = [
+        path.join(root, "GOALS.md"),
+        path.join(root, "workspace", "GOALS.md"),
+        path.join(root, "memory", "goals.md"),
+      ];
+      let goalPath = "";
+      for (const gp of possibleGoals) {
+        if (fs.existsSync(gp)) {
+          goalPath = gp;
+          break;
+        }
+      }
+      if (!goalPath) {
+        res = {
+          status: "ok",
+          stimulus: "stale_goal",
+          triggered: false,
+          message: "No active GOALS.md found",
+        };
+      } else {
+        const stat = fs.statSync(goalPath);
+        const ageHours = (Date.now() - stat.mtimeMs) / (1000 * 3600);
+        const thresholdHours = parseFloat(args.threshold_hours || "12.0");
+        const content = fs.readFileSync(goalPath, "utf8");
+        const hasUnfinished = content.includes("- [ ]");
+        const triggered = ageHours >= thresholdHours && hasUnfinished;
+        res = {
+          status: "ok",
+          stimulus: "stale_goal",
+          goal_path: goalPath,
+          age_hours: Math.round(ageHours * 10) / 10,
+          threshold_hours: thresholdHours,
+          has_unfinished_goals: hasUnfinished,
+          triggered,
+        };
+      }
+    } else {
+      res = { status: "error", error: `Unknown stimulus: ${stim}` };
+    }
+    console.log(JSON.stringify(res, null, 2));
+    process.exit(res.status === "ok" ? 0 : 1);
+  }
+
   const op = (args.tool || args.action || args.sense || "").toLowerCase();
 
   let res: Record<string, unknown>;
