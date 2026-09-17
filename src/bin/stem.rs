@@ -84,6 +84,9 @@ fn main() {
     eprintln!("stem: watching {} (voice cursor {voice_cursor}, {} stimuli active)", mem.display(), stembus.stimuli.len());
 
     let stimuli_cfg_path = mem.join("stimuli.json");
+    let reflexes_path = mem.join("reflexes.json");
+    let mut cord = presence::cord::Cord::load(&reflexes_path);
+    let desk = cfg().desk_path();
     let mut wakes: u64 = 0;
     loop {
         std::thread::sleep(Duration::from_secs(current_interval));
@@ -92,6 +95,7 @@ fn main() {
 
         // --- autonomous vegetative stimuli via StemBus ---
         let overrides = presence::stembus::load_stimuli_overrides(&stimuli_cfg_path);
+        cord.reload();
         let stimulus_events = stembus.poll_due(now, &overrides);
         let existing_alarms = read_alarms(&alarms_path);
 
@@ -105,22 +109,6 @@ fn main() {
                 } else if current_interval != interval {
                     log_line(&log, "modulate_pulse", &format!("user presence restored -> accelerating pulse to {interval}s"));
                     current_interval = interval;
-                }
-            } else if ev.stimulus_name == "battery_low" && ev.triggered {
-                let alarm_id = "alarm:stimulus:battery_low".to_string();
-                if !existing_alarms.alarms.iter().any(|a| a.id == alarm_id) {
-                    log_line(&log, "stimulus_alert", "battery low (<15%) triggered");
-                    current_interval = interval;
-                    let alert_alarm = serde_json::json!({
-                        "id": alarm_id,
-                        "fire_at": now,
-                        "reason": "Battery critical (<15%), conscious intervention required",
-                        "origin": "vitals",
-                        "target_agent": ev.target_agent
-                    });
-                    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&alarms_path) {
-                        let _ = writeln!(f, "{alert_alarm}");
-                    }
                 }
             } else if ev.stimulus_name == "network_state" {
                 let online = ev.data.get("online").and_then(|v| v.as_bool()).unwrap_or(true);
@@ -143,65 +131,53 @@ fn main() {
                     log_line(&log, "high_cpu", "CPU spike detected -> pacing pulse");
                     current_interval = idle_interval;
                 }
-            } else if ev.stimulus_name == "disk_space_low" && ev.triggered {
-                let alarm_id = "alarm:stimulus:disk_space_low".to_string();
-                if !existing_alarms.alarms.iter().any(|a| a.id == alarm_id) {
-                    log_line(&log, "stimulus_alert", "disk space critically low (< 5GB)");
-                    let alert_alarm = serde_json::json!({
-                        "id": alarm_id,
-                        "fire_at": now,
-                        "reason": "Disk space critically low (< 5GB), storage cleanup advised",
-                        "origin": "io",
-                        "target_agent": ev.target_agent
-                    });
-                    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&alarms_path) {
-                        let _ = writeln!(f, "{alert_alarm}");
+            } else if ev.triggered {
+                // Cord Reflex Arc interception for all triggered stimuli
+                let default_reason = match ev.stimulus_name.as_str() {
+                    "battery_low" => "Battery critical (<15%), conscious intervention required".to_string(),
+                    "disk_space_low" => "Disk space critically low (< 5GB), storage cleanup advised".to_string(),
+                    "git_dirty_drift" => "Uncommitted git drift detected, checkpoint advised".to_string(),
+                    "git_upstream_behind" => {
+                        let behind = ev.data.get("behind_count").and_then(|v| v.as_u64()).unwrap_or(1);
+                        format!("Git branch is behind remote by {behind} commits, fetch/pull advised")
+                    },
+                    "stale_goal" => "Active goals in GOALS.md idle for >12 hours".to_string(),
+                    other => format!("Vegetative stimulus '{other}' triggered"),
+                };
+
+                let outcome = cord.evaluate(
+                    &ev.stimulus_name,
+                    ev.target_agent.as_deref(),
+                    &default_reason,
+                    now,
+                    &desk,
+                );
+
+                match outcome {
+                    presence::cord::ReflexOutcome::Suppressed { reflex_id, reason } => {
+                        log_line(&log, "reflex_suppressed", &format!("{}: {}", reflex_id, reason.unwrap_or_default()));
                     }
-                }
-            } else if ev.stimulus_name == "git_dirty_drift" && ev.triggered {
-                let alarm_id = "alarm:stimulus:git_dirty_drift".to_string();
-                if !existing_alarms.alarms.iter().any(|a| a.id == alarm_id) {
-                    log_line(&log, "stimulus_alert", "git working tree dirty drift");
-                    let alert_alarm = serde_json::json!({
-                        "id": alarm_id,
-                        "fire_at": now,
-                        "reason": "Uncommitted git drift detected, checkpoint advised",
-                        "origin": "git",
-                        "target_agent": ev.target_agent
-                    });
-                    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&alarms_path) {
-                        let _ = writeln!(f, "{alert_alarm}");
+                    presence::cord::ReflexOutcome::Executed { reflex_id, command, success, output } => {
+                        log_line(&log, "reflex_executed", &format!("{}: cmd='{}' success={} out='{}'", reflex_id, command, success, output));
                     }
-                }
-            } else if ev.stimulus_name == "git_upstream_behind" && ev.triggered {
-                let alarm_id = "alarm:stimulus:git_upstream_behind".to_string();
-                if !existing_alarms.alarms.iter().any(|a| a.id == alarm_id) {
-                    let behind = ev.data.get("behind_count").and_then(|v| v.as_u64()).unwrap_or(1);
-                    log_line(&log, "stimulus_alert", &format!("git branch is behind upstream by {behind} commits"));
-                    let alert_alarm = serde_json::json!({
-                        "id": alarm_id,
-                        "fire_at": now,
-                        "reason": format!("Git branch is behind remote by {behind} commits, fetch/pull advised"),
-                        "origin": "git",
-                        "target_agent": ev.target_agent
-                    });
-                    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&alarms_path) {
-                        let _ = writeln!(f, "{alert_alarm}");
-                    }
-                }
-            } else if ev.stimulus_name == "stale_goal" && ev.triggered {
-                let alarm_id = "alarm:stimulus:stale_goal".to_string();
-                if !existing_alarms.alarms.iter().any(|a| a.id == alarm_id) {
-                    log_line(&log, "stimulus_alert", "stale goals (>12h without update)");
-                    let alert_alarm = serde_json::json!({
-                        "id": alarm_id,
-                        "fire_at": now,
-                        "reason": "Active goals in GOALS.md idle for >12 hours",
-                        "origin": "state",
-                        "target_agent": ev.target_agent
-                    });
-                    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&alarms_path) {
-                        let _ = writeln!(f, "{alert_alarm}");
+                    presence::cord::ReflexOutcome::Escalate { target_agent, reason } => {
+                        if ev.stimulus_name == "battery_low" {
+                            current_interval = interval;
+                        }
+                        let alarm_id = format!("alarm:stimulus:{}", ev.stimulus_name);
+                        if !existing_alarms.alarms.iter().any(|a| a.id == alarm_id) {
+                            log_line(&log, "stimulus_alert", &reason);
+                            let alert_alarm = serde_json::json!({
+                                "id": alarm_id,
+                                "fire_at": now,
+                                "reason": reason,
+                                "origin": ev.organ_name,
+                                "target_agent": target_agent
+                            });
+                            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&alarms_path) {
+                                let _ = writeln!(f, "{alert_alarm}");
+                            }
+                        }
                     }
                 }
             }

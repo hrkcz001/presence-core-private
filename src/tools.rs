@@ -397,6 +397,24 @@ pub fn defs() -> Vec<Value> {
         json!({
             "type": "function",
             "function": {
+                "name": "manage_reflexes",
+                "description": "Register, list, or remove runtime Cord reflexes. Cord reflexes execute deterministic sub-millisecond reactions (suppression, automated shell cleanup) upon vegetative stimuli trigger without spending LLM tokens.",
+                "parameters": {"type": "object", "properties": {
+                    "action": {"type": "string", "enum": ["register", "list", "remove"], "description": "Action to perform"},
+                    "id": {"type": "string", "description": "Optional unique ID for the reflex (e.g. reflex:disk_space:auto_clean). Required for remove."},
+                    "stimulus": {"type": "string", "description": "Vegetative stimulus to trigger on (e.g. disk_space_low, workspace_bloat, git_dirty_drift)"},
+                    "reflex_action": {"type": "string", "enum": ["suppress", "exec", "escalate"], "description": "Reflex behavior: 'suppress' (mutes wake), 'exec' (runs deterministic command), 'escalate' (wakes specific target agent)"},
+                    "command": {"type": "string", "description": "Shell command to run when reflex_action is 'exec'"},
+                    "duration_seconds": {"type": "integer", "description": "Optional lifetime in seconds before this reflex expires (e.g. 14400 for 4 hours)"},
+                    "fallback_to_cortex": {"type": "boolean", "description": "If true (default), failures in 'exec' will escalate to Cortex"},
+                    "target_agent": {"type": "string", "description": "Agent persona to target if escalated"},
+                    "reason": {"type": "string", "description": "Human-readable intent or reason for this reflex"}
+                }, "required": ["action"]}
+            }
+        }),
+        json!({
+            "type": "function",
+            "function": {
                 "name": "read_file",
                 "description": "Read a text file (any path on this machine).",
                 "parameters": {"type": "object", "properties": {
@@ -967,7 +985,81 @@ pub fn execute(ctx: &ToolCtx, name: &str, args: &Value) -> String {
                 other => format!("Unknown tune_stimuli action: '{other}'. Expected: snooze, enable, disable, status"),
             }
         }
-                "read_file" => {
+        "manage_reflexes" => {
+            let action = args.get("action").and_then(Value::as_str).unwrap_or("list");
+            let id = args.get("id").and_then(Value::as_str);
+            let stimulus = args.get("stimulus").and_then(Value::as_str).unwrap_or("");
+            let reflex_action = args.get("reflex_action").and_then(Value::as_str).unwrap_or("suppress");
+            let command = args.get("command").and_then(Value::as_str).map(String::from);
+            let duration = args.get("duration_seconds").and_then(Value::as_u64).unwrap_or(0);
+            let fallback = args.get("fallback_to_cortex").and_then(Value::as_bool).unwrap_or(true);
+            let target_agent = args.get("target_agent").and_then(Value::as_str).map(String::from);
+            let reason = args.get("reason").and_then(Value::as_str).map(String::from);
+
+            let reflexes_path = ctx.desk.join("memory").join("reflexes.json");
+            let mut cord = crate::cord::Cord::load(&reflexes_path);
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+
+            match action {
+                "list" => {
+                    if cord.reflexes.is_empty() {
+                        return "No active Cord reflexes registered.".to_string();
+                    }
+                    let mut lines = vec![format!("Active Cord reflexes ({}):", cord.reflexes.len())];
+                    for r in &cord.reflexes {
+                        let exp_str = match r.expires_at {
+                            Some(exp) if exp > now => format!("expires in {}s", exp - now),
+                            Some(_) => "expired".to_string(),
+                            None => "permanent".to_string(),
+                        };
+                        lines.push(format!(
+                            "- [{}] on: '{}' -> action: '{}' ({}) reason: '{}' cmd: {:?}",
+                            r.id, r.trigger_stimulus, r.action, exp_str, r.reason.as_deref().unwrap_or("-"), r.command
+                        ));
+                    }
+                    lines.join("\n")
+                }
+                "register" => {
+                    if stimulus.is_empty() {
+                        return "manage_reflexes error: 'stimulus' is required to register a reflex".to_string();
+                    }
+                    let reflex_id = id
+                        .map(String::from)
+                        .unwrap_or_else(|| format!("reflex:{stimulus}:{now}"));
+                    let expires_at = if duration > 0 { Some(now + duration) } else { None };
+                    let r = crate::cord::RuntimeReflex {
+                        id: reflex_id.clone(),
+                        trigger_stimulus: stimulus.to_string(),
+                        action: reflex_action.to_string(),
+                        command,
+                        fallback_to_cortex: fallback,
+                        target_agent,
+                        expires_at,
+                        reason,
+                        created_at: now,
+                    };
+                    if let Err(e) = cord.add_or_update(r) {
+                        return format!("manage_reflexes error saving reflex: {e}");
+                    }
+                    format!("Successfully registered Cord reflex '{reflex_id}' for stimulus '{stimulus}' (action: {reflex_action}).")
+                }
+                "remove" => {
+                    let Some(rid) = id else {
+                        return "manage_reflexes error: 'id' is required to remove a reflex".to_string();
+                    };
+                    match cord.remove(rid) {
+                        Ok(true) => format!("Successfully removed Cord reflex '{rid}'."),
+                        Ok(false) => format!("Cord reflex '{rid}' not found."),
+                        Err(e) => format!("manage_reflexes error removing reflex: {e}"),
+                    }
+                }
+                other => format!("Unknown manage_reflexes action: '{other}'. Expected: list, register, remove"),
+            }
+        }
+                        "read_file" => {
             let path = args.get("path").and_then(Value::as_str).unwrap_or("");
             match std::fs::read_to_string(path) {
                 Ok(s) => truncate(&s, cfg().limits.tool_output),
@@ -1433,6 +1525,33 @@ print(f"ECHO: {args.msg}")
         ctx.persona = Some("mechanic".to_string());
         let out_mech = execute(&ctx, "write_file", &serde_json::json!({"path": "src/phase.rs", "content": "// ok"}));
         assert!(out_mech.starts_with("wrote"), "mechanic should be able to write to src: {out_mech}");
+    }
+
+
+    #[test]
+    fn test_manage_reflexes_execution() {
+        let (ctx, _g) = ctx();
+        let out_reg = execute(&ctx, "manage_reflexes", &serde_json::json!({
+            "action": "register",
+            "id": "reflex:test:auto_clean",
+            "stimulus": "workspace_bloat",
+            "reflex_action": "exec",
+            "command": "echo cleaned",
+            "reason": "auto test"
+        }));
+        assert!(out_reg.contains("Successfully registered Cord reflex"), "{out_reg}");
+
+        let out_list = execute(&ctx, "manage_reflexes", &serde_json::json!({
+            "action": "list"
+        }));
+        assert!(out_list.contains("reflex:test:auto_clean"), "{out_list}");
+        assert!(out_list.contains("workspace_bloat"), "{out_list}");
+
+        let out_rem = execute(&ctx, "manage_reflexes", &serde_json::json!({
+            "action": "remove",
+            "id": "reflex:test:auto_clean"
+        }));
+        assert!(out_rem.contains("Successfully removed"), "{out_rem}");
     }
 
     #[test]

@@ -24,6 +24,7 @@ mod capabilities;
 mod senses;
 mod sandbox;
 mod stembus;
+mod cord;
 
 use llm::Bridge;
 use serde::{Deserialize, Serialize};
