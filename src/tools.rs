@@ -740,6 +740,7 @@ pub fn execute_dynamic_tool(tool: &DiscoveredTool, args: &Value) -> String {
         max_memory_bytes: Some(512 * 1024 * 1024),
         kill_on_parent_exit: true,
         timeout_seconds: timeout_secs,
+        ..Default::default()
     };
     let _guard = crate::sandbox::ProcessGuard::attach(&child, &sandbox_cfg);
 
@@ -973,6 +974,7 @@ pub fn execute(ctx: &ToolCtx, name: &str, args: &Value) -> String {
                 max_memory_bytes: Some(1024 * 1024 * 1024),
                 kill_on_parent_exit: true,
                 timeout_seconds: cfg().limits.run_command_timeout_secs,
+                ..Default::default()
             };
             let _guard = crate::sandbox::ProcessGuard::attach(&child, &sandbox_cfg);
             // Drain both pipes in threads: a full pipe would otherwise
