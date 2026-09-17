@@ -1,15 +1,15 @@
-name: vox
-version: "0.1.0"
-description: "Native pure-Rust voice sensory and audio capture organ (cpal/WASAPI)"
-instructions: "Native pure-Rust audio organ. Use vox_listen to capture microphone audio stream directly via cpal/WASAPI."
-entrypoint: "bin/vox.exe"
+﻿name: vox
+version: "1.0.0"
+author: "presence"
+description: "Native pure-Rust voice sensory and audio capture organ"
+entrypoint: "organ-vox.exe"
 type: "cli"
 senses:
   - name: hearing
-    description: "Raw PCM / audio capture stream"
+    description: "Raw PCM audio capture stream"
 tools:
   - name: vox_listen
-    description: "Capture microphone audio via pure-Rust cpal/WASAPI stream"
+    description: "Capture microphone audio stream"
     parameters:
       type: object
       properties:

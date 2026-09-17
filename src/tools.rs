@@ -623,33 +623,31 @@ pub fn execute_dynamic_tool(tool: &DiscoveredTool, args: &Value) -> String {
     let entry_path = if Path::new(entry_name).is_absolute() {
         PathBuf::from(entry_name)
     } else {
-        let direct = tool.dir.join(entry_name);
-        if direct.exists() {
-            direct
-        } else if let Some(home) = dirs_home() {
-            let shims = home.join("scoop/shims");
-            let shim_exe = shims.join(format!("{entry_name}.exe"));
-            let shim_direct = shims.join(entry_name);
-            if shim_exe.exists() {
-                shim_exe
-            } else if shim_direct.exists() {
-                shim_direct
-            } else {
-                let PRESENCE_WORKSPACE = std::env::var("PRESENCE_WORKSPACE")
-                    .or_else(|_| std::env::var("PRESENCE_WORKSPACE"))
-                    .or_else(|_| std::env::var("PRESENCE_WORKSPACE"))
-                    .map(PathBuf::from)
-                    .unwrap_or_else(|_| PathBuf::from("."));
-                let fallback = PRESENCE_WORKSPACE.join("tools").join(&manifest.name).join(entry_name);
-                if fallback.exists() {
-                    fallback
-                } else {
-                    direct
-                }
-            }
-        } else {
-            direct
+        let mut candidates = vec![
+            tool.dir.join(entry_name),
+            tool.dir.join(format!("{entry_name}.exe")),
+            tool.dir.join("bin").join(entry_name),
+            tool.dir.join("bin").join(format!("{entry_name}.exe")),
+            tool.dir.join("target/release").join(entry_name),
+            tool.dir.join("target/release").join(format!("{entry_name}.exe")),
+        ];
+        if let Ok(organs_env) = std::env::var("PRESENCE_ORGANS_PATH") {
+            candidates.push(PathBuf::from(&organs_env).join(&manifest.name).join(entry_name));
+            candidates.push(PathBuf::from(&organs_env).join(&manifest.name).join(format!("{entry_name}.exe")));
         }
+        if let Some(home) = dirs_home() {
+            candidates.push(home.join(".presence/organs").join(&manifest.name).join(entry_name));
+            candidates.push(home.join(".presence/organs").join(&manifest.name).join(format!("{entry_name}.exe")));
+            candidates.push(home.join("scoop/shims").join(format!("{entry_name}.exe")));
+            candidates.push(home.join("scoop/shims").join(entry_name));
+        }
+        let PRESENCE_WORKSPACE = std::env::var("PRESENCE_WORKSPACE")
+            .or_else(|_| std::env::var("PRESENCE_WORKSPACE"))
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| PathBuf::from("."));
+        candidates.push(PRESENCE_WORKSPACE.join("tools").join(&manifest.name).join(entry_name));
+
+        candidates.into_iter().find(|p| p.exists()).unwrap_or_else(|| tool.dir.join(entry_name))
     };
 
     let timeout_secs = manifest.permissions.timeout_seconds.unwrap_or(30);
