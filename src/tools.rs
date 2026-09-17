@@ -1,4 +1,4 @@
-﻿//! Tool set v0 (PLAN §6). OpenAI tool definitions + executor.
+//! Tool set v0 (PLAN §6). OpenAI tool definitions + executor.
 //! write_file is desk-scoped (step 15): paths resolve under the desk
 //! root, no escape. run_command is bounded: 30s timeout, output capped.
 //! Reads are unrestricted. Brain writes are runtime-owned, never here.
@@ -377,6 +377,19 @@ pub fn defs() -> Vec<Value> {
                     "sense": {"type": "string", "enum": ["vision", "hearing", "windows", "time", "proprioception", "all"], "description": "Sensory organ to tune or 'all'"},
                     "enabled": {"type": "boolean", "description": "true to enable/open the sense, false to gate/mute it"}
                 }, "required": ["sense", "enabled"]}
+            }
+        }),
+        json!({
+            "type": "function",
+            "function": {
+                "name": "tune_stimuli",
+                "description": "Dynamically inspect, snooze, disable, or enable vegetative stimuli (e.g. disk_space_low, git_dirty_drift, user_idle, battery_low).",
+                "parameters": {"type": "object", "properties": {
+                    "stimulus": {"type": "string", "description": "Target stimulus name or 'all'"},
+                    "action": {"type": "string", "enum": ["snooze", "enable", "disable", "status"], "description": "Action to perform"},
+                    "duration_seconds": {"type": "integer", "description": "Duration in seconds to snooze the stimulus (e.g. 14400 for 4 hours)"},
+                    "reason": {"type": "string", "description": "Optional human-readable explanation for why it was snoozed or disabled"}
+                }, "required": ["action"]}
             }
         }),
         json!({
@@ -875,6 +888,83 @@ pub fn execute(ctx: &ToolCtx, name: &str, args: &Value) -> String {
                 "tune_senses error: lock poisoned".to_string()
             }
         }
+        "tune_stimuli" => {
+            let stimulus = args.get("stimulus").and_then(Value::as_str).unwrap_or("");
+            let action = args.get("action").and_then(Value::as_str).unwrap_or("status");
+            let duration = args.get("duration_seconds").and_then(Value::as_u64).unwrap_or(0);
+            let reason = args.get("reason").and_then(Value::as_str).map(|s| s.to_string());
+
+            let stimuli_path = ctx.desk.join("memory").join("stimuli.json");
+            let mut overrides = crate::stembus::load_stimuli_overrides(&stimuli_path);
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+
+            match action {
+                "status" => {
+                    if overrides.is_empty() {
+                        "All stimuli running at default organ cadences with no active snoozes.".to_string()
+                    } else {
+                        let mut lines = vec!["Active stimulus overrides:".to_string()];
+                        for (k, v) in &overrides {
+                            let snooze_str = match v.snooze_until {
+                                Some(until) if until > now => format!(" (snoozed for {}s remaining)", until - now),
+                                _ => String::new(),
+                            };
+                            let reason_str = v.reason.as_deref().map(|r| format!(" [{r}]")).unwrap_or_default();
+                            lines.push(format!("- {}: enabled={}{}{}", k, v.enabled, snooze_str, reason_str));
+                        }
+                        lines.join("\n")
+                    }
+                }
+                "snooze" => {
+                    if stimulus.is_empty() {
+                        return "tune_stimuli error: 'stimulus' name is required for snooze".to_string();
+                    }
+                    if duration == 0 {
+                        return "tune_stimuli error: 'duration_seconds' must be > 0 to snooze".to_string();
+                    }
+                    let snooze_until = now + duration;
+                    let entry = overrides.entry(stimulus.to_string()).or_default();
+                    entry.snooze_until = Some(snooze_until);
+                    if reason.is_some() {
+                        entry.reason = reason;
+                    }
+                    if let Err(e) = crate::stembus::save_stimuli_overrides(&stimuli_path, &overrides) {
+                        return format!("tune_stimuli error saving overrides: {e}");
+                    }
+                    format!("Successfully snoozed stimulus '{stimulus}' for {duration} seconds (until {snooze_until}).")
+                }
+                "disable" => {
+                    if stimulus.is_empty() {
+                        return "tune_stimuli error: 'stimulus' name is required to disable".to_string();
+                    }
+                    let entry = overrides.entry(stimulus.to_string()).or_default();
+                    entry.enabled = false;
+                    if reason.is_some() {
+                        entry.reason = reason;
+                    }
+                    if let Err(e) = crate::stembus::save_stimuli_overrides(&stimuli_path, &overrides) {
+                        return format!("tune_stimuli error saving overrides: {e}");
+                    }
+                    format!("Successfully disabled vegetative stimulus '{stimulus}'.")
+                }
+                "enable" => {
+                    if stimulus.is_empty() {
+                        return "tune_stimuli error: 'stimulus' name is required to enable".to_string();
+                    }
+                    let entry = overrides.entry(stimulus.to_string()).or_default();
+                    entry.enabled = true;
+                    entry.snooze_until = None;
+                    if let Err(e) = crate::stembus::save_stimuli_overrides(&stimuli_path, &overrides) {
+                        return format!("tune_stimuli error saving overrides: {e}");
+                    }
+                    format!("Successfully enabled vegetative stimulus '{stimulus}'.")
+                }
+                other => format!("Unknown tune_stimuli action: '{other}'. Expected: snooze, enable, disable, status"),
+            }
+        }
                 "read_file" => {
             let path = args.get("path").and_then(Value::as_str).unwrap_or("");
             match std::fs::read_to_string(path) {
@@ -1079,6 +1169,29 @@ mod tests {
         assert!(out.contains("vision=true"), "{out}");
         let mask = ctx.senses_mask.lock().unwrap();
         assert_eq!(mask.get("vision"), Some(&true));
+    }
+
+    #[test]
+    fn test_tune_stimuli_execution() {
+        let (ctx, _g) = ctx();
+        let out_snooze = execute(&ctx, "tune_stimuli", &json!({
+            "stimulus": "disk_space_low",
+            "action": "snooze",
+            "duration_seconds": 3600,
+            "reason": "testing snooze"
+        }));
+        assert!(out_snooze.contains("Successfully snoozed"), "{out_snooze}");
+
+        let out_status = execute(&ctx, "tune_stimuli", &json!({
+            "action": "status"
+        }));
+        assert!(out_status.contains("disk_space_low: enabled=true (snoozed"), "{out_status}");
+
+        let out_disable = execute(&ctx, "tune_stimuli", &json!({
+            "stimulus": "disk_space_low",
+            "action": "disable"
+        }));
+        assert!(out_disable.contains("Successfully disabled"), "{out_disable}");
     }
 
     fn ctx() -> (ToolCtx, tempfile::TempDir) {

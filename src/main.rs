@@ -1,4 +1,4 @@
-﻿//! presence — presence's own body. ACP agent server (Rust).
+//! presence — presence's own body. ACP agent server (Rust).
 //! M2: tools (read_file, write_file desk-scoped, list_files,
 //! run_command bounded) + OpenAI tool-call loop through the bridge +
 //! exact token ledger. System prompt: system constitution + operational
@@ -23,6 +23,7 @@ mod winsense;
 mod capabilities;
 mod senses;
 mod sandbox;
+mod stembus;
 
 use llm::Bridge;
 use serde::{Deserialize, Serialize};

@@ -27,6 +27,52 @@ pub struct StimulusEvent {
     pub data: Value,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StimulusOverride {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    #[serde(default)]
+    pub snooze_until: Option<u64>,
+    #[serde(default)]
+    pub cadence_secs: Option<u64>,
+    #[serde(default)]
+    pub reason: Option<String>,
+}
+
+impl Default for StimulusOverride {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            snooze_until: None,
+            cadence_secs: None,
+            reason: None,
+        }
+    }
+}
+
+fn default_true() -> bool {
+    true
+}
+
+pub fn load_stimuli_overrides(path: &std::path::Path) -> std::collections::HashMap<String, StimulusOverride> {
+    if let Ok(data) = std::fs::read_to_string(path) {
+        serde_json::from_str(&data).unwrap_or_default()
+    } else {
+        std::collections::HashMap::new()
+    }
+}
+
+pub fn save_stimuli_overrides(
+    path: &std::path::Path,
+    overrides: &std::collections::HashMap<String, StimulusOverride>,
+) -> std::io::Result<()> {
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let data = serde_json::to_string_pretty(overrides).unwrap_or_default();
+    std::fs::write(path, data)
+}
+
 pub struct StemBus {
     pub stimuli: Vec<ActiveStimulus>,
 }
@@ -56,11 +102,32 @@ impl StemBus {
         Self { stimuli }
     }
 
-    /// Poll all active stimuli whose cadence interval has elapsed.
-    pub fn poll_due(&mut self, now: u64) -> Vec<StimulusEvent> {
+
+    /// Poll all active stimuli whose cadence interval has elapsed, respecting overrides and snoozes.
+    pub fn poll_due(
+        &mut self,
+        now: u64,
+        overrides: &std::collections::HashMap<String, StimulusOverride>,
+    ) -> Vec<StimulusEvent> {
         let mut events = Vec::new();
         for stim in &mut self.stimuli {
-            if now.saturating_sub(stim.last_polled) >= stim.cadence_secs {
+            if let Some(ov) = overrides.get(&stim.stimulus_name) {
+                if !ov.enabled {
+                    continue;
+                }
+                if let Some(snooze) = ov.snooze_until {
+                    if now < snooze {
+                        continue;
+                    }
+                }
+            }
+
+            let cadence = overrides
+                .get(&stim.stimulus_name)
+                .and_then(|ov| ov.cadence_secs)
+                .unwrap_or(stim.cadence_secs);
+
+            if now.saturating_sub(stim.last_polled) >= cadence {
                 stim.last_polled = now;
                 if let Some(event) = Self::poll_one(stim) {
                     events.push(event);

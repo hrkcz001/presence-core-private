@@ -51,6 +51,6 @@ stimuli:
   - name: git_upstream_behind
     description: "Emitted when local branch is behind remote tracking branch"
     cadence_secs: 300
-    action: "modulate_pulse"
+    action: "alert"
 permissions:
   timeout_seconds: 30
