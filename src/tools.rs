@@ -736,6 +736,13 @@ pub fn execute_dynamic_tool(tool: &DiscoveredTool, args: &Value) -> String {
         Err(e) => return format!("tool '{}' execution error: {e}", manifest.name),
     };
 
+    let sandbox_cfg = crate::sandbox::SandboxConfig {
+        max_memory_bytes: Some(512 * 1024 * 1024),
+        kill_on_parent_exit: true,
+        timeout_seconds: timeout_secs,
+    };
+    let _guard = crate::sandbox::ProcessGuard::attach(&child, &sandbox_cfg);
+
     let mut out_r = child.stdout.take().expect("stdout");
     let mut err_r = child.stderr.take().expect("stderr");
     let t_out = std::thread::spawn(move || {
@@ -961,6 +968,13 @@ pub fn execute(ctx: &ToolCtx, name: &str, args: &Value) -> String {
                 Ok(c) => c,
                 Err(e) => return format!("run_command error: {e}"),
             };
+
+            let sandbox_cfg = crate::sandbox::SandboxConfig {
+                max_memory_bytes: Some(1024 * 1024 * 1024),
+                kill_on_parent_exit: true,
+                timeout_seconds: cfg().limits.run_command_timeout_secs,
+            };
+            let _guard = crate::sandbox::ProcessGuard::attach(&child, &sandbox_cfg);
             // Drain both pipes in threads: a full pipe would otherwise
             // block the child and fake a timeout.
             let mut out_r = child.stdout.take().expect("stdout");

@@ -1,4 +1,5 @@
 ﻿//! Shared library crate for all presence binaries (config, friction).
+pub mod sandbox;
 
 pub mod capabilities;
 pub mod config;
