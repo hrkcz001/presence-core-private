@@ -99,7 +99,7 @@ impl CapabilityCatalog {
             "organcrafter".to_string(),
             PersonaGrant {
                 role: "peripheral artisan - crafts, tests, packages organs and tool bindings".into(),
-                aliases: vec!["toolcrafter".into()],
+                aliases: vec![],
                 capabilities: vec![
                     "fs:read".into(),
                     "proc:spawn".into(),
@@ -369,7 +369,6 @@ mod tests {
         let reg = CapabilityRegistry::new();
         let root = Path::new("C:/workspace");
         assert!(reg.check_write_permission("organcrafter", Path::new("C:/workspace/organs/new_organ/organ.yaml"), root).is_ok());
-        assert!(reg.check_write_permission("toolcrafter", Path::new("C:/workspace/organs/new_organ/organ.yaml"), root).is_ok());
         let res = reg.check_write_permission("organcrafter", Path::new("C:/workspace/src/lib.rs"), root);
         assert!(res.is_err());
         assert!(res.unwrap_err().contains("engine:modify"));

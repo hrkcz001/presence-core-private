@@ -1,4 +1,4 @@
-# Presence Scoped Capabilities Catalog & Persona Grants
+﻿# Presence Scoped Capabilities Catalog & Persona Grants
 version: "1.0"
 
 # Formal definition of capability tokens
@@ -36,8 +36,6 @@ personas:
 
   organcrafter:
     role: "peripheral artisan - crafts, tests, packages organs and tool bindings"
-    aliases:
-      - "toolcrafter"
     capabilities:
       - "fs:read"
       - "proc:spawn"

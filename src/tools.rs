@@ -1165,10 +1165,10 @@ print(f"ECHO: {args.msg}")
             desk: temp.path().to_path_buf(),
             ..Default::default()
         };
-        let out = execute(&ctx, "switch_agent", &serde_json::json!({"agent_name": "toolcrafter"}));
-        assert!(out.contains("toolcrafter"), "{out}");
+        let out = execute(&ctx, "switch_agent", &serde_json::json!({"agent_name": "organcrafter"}));
+        assert!(out.contains("organcrafter"), "{out}");
         let content = std::fs::read_to_string(temp.path().join("memory/agent.active")).unwrap();
-        assert_eq!(content, "toolcrafter");
+        assert_eq!(content, "organcrafter");
     }
 
     #[test]
