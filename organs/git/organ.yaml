@@ -1,9 +1,9 @@
-name: git
+﻿name: git
 version: "1.0.0"
 description: "Non-interactive structured version control organ"
 instructions: "Structured non-interactive Git operations. Use git_checkpoint after coherent edits."
-entrypoint: "git.py"
-type: "python"
+entrypoint: "git.ts"
+type: "typescript"
 senses:
   - name: git_status
     description: "Working tree state and modified files"

@@ -1,9 +1,9 @@
-name: plan
+﻿name: plan
 version: "1.0.0"
 description: "Goal formulation, active intent, roadmap execution, and session journal"
 instructions: "Maintain active intent via plan_step (bound to active agent card) and record major cognitive milestones via journal_append."
-entrypoint: "plan.py"
-type: "python"
+entrypoint: "plan.ts"
+type: "typescript"
 senses:
   - name: standing_intent
     description: "Active plan step and current milestone directly injected into Observation"

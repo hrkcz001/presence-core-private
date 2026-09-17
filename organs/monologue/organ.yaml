@@ -1,9 +1,9 @@
-name: monologue
+﻿name: monologue
 version: "1.0.0"
 description: "Silent cognitive inner speech organ for deliberation, reflection, and hypothesis tracking"
 instructions: "Use ponder and reflect for silent internal contemplation and hypothesis formation. Deliberations remain private and do not reach the user."
-entrypoint: "monologue.py"
-type: "python"
+entrypoint: "monologue.ts"
+type: "typescript"
 senses:
   - name: stream_of_consciousness
     description: "Recent internal reflections and hypotheses injected directly into Observation"

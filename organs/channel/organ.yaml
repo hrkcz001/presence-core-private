@@ -1,9 +1,9 @@
-name: channel
+﻿name: channel
 version: "1.0.0"
 description: "External communication interface organ (CLI clients, terminal channels, message inbox/outbox)"
 instructions: "Use send_reply to transmit conscious answers and final verdicts back to the active user/client. Do not dump loose prose without this tool."
-entrypoint: "channel.py"
-type: "python"
+entrypoint: "channel.ts"
+type: "typescript"
 senses:
   - name: incoming_inbox
     description: "Pending incoming user inquiries and CLI requests"

@@ -1,9 +1,9 @@
-name: state
+﻿name: state
 version: "1.0.0"
 description: "Presence cognitive state preservation, session pause, and hibernation"
 instructions: "Snapshot and restore agent card state; pause sessions safely into rest mode."
-entrypoint: "state.py"
-type: "python"
+entrypoint: "state.ts"
+type: "typescript"
 senses:
   - name: sleep_state
     description: "Current hibernation posture and downtime indicators"

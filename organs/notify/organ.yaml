@@ -1,9 +1,9 @@
-name: notify
+﻿name: notify
 version: "1.0.0"
 description: "System desktop notifications on Windows (WinRT) and Linux (notify-send)"
 instructions: "Desktop alert interface. Use toast to notify the user of major asynchronous events."
-entrypoint: "notify.py"
-type: "python"
+entrypoint: "notify.ts"
+type: "typescript"
 tools:
   - name: toast
     description: "Display a desktop notification toast"

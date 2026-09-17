@@ -1285,6 +1285,20 @@ print(f"ECHO: {args.msg}")
         assert!(out_mech.starts_with("wrote"), "mechanic should be able to write to src: {out_mech}");
     }
 
+    #[test]
+    fn test_typescript_organ_channel_execution() {
+        let discovered = discover_dynamic_tools();
+        let channel_tool = discovered.iter().find(|d| d.manifest.name == "channel");
+        assert!(channel_tool.is_some(), "channel organ must be discovered");
+        let tool = channel_tool.unwrap();
+        let out = execute_dynamic_tool(tool, &serde_json::json!({
+            "message": "hello from ts test",
+            "channel": "test-chan"
+        }));
+        assert!(out.contains("\"status\": \"ok\""), "expected status ok, got: {out}");
+        assert!(out.contains("test-chan"), "expected test-chan in output: {out}");
+    }
+
 }
 
 /// Absolute path for UI display (follow-along locations).

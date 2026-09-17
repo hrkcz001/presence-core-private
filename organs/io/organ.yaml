@@ -1,9 +1,9 @@
-name: io
+﻿name: io
 version: "1.0.0"
 description: "Physical input/output and filesystem manipulation organ"
 instructions: "Filesystem interaction. Use read_file, write_file, and list_files for file I/O operations."
-entrypoint: "io.py"
-type: "python"
+entrypoint: "io.ts"
+type: "typescript"
 senses:
   - name: fs_changes
     description: "Recent modifications in workspace files"
