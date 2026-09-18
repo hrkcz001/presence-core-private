@@ -900,6 +900,35 @@ pub fn execute_dynamic_tool(tool: &DiscoveredTool, args: &Value) -> String {
 }
 
 
+fn find_organ_shell_binary(desk: &Path) -> Option<PathBuf> {
+    let candidates = [
+        desk.join("organs/shell/organ-shell.exe"),
+        desk.join("organs/shell/organ-shell"),
+        desk.join("registry/shell/organ-shell.exe"),
+        desk.join("registry/shell/organ-shell"),
+    ];
+    for c in &candidates {
+        if c.is_file() {
+            return Some(c.clone());
+        }
+    }
+    if let Ok(w) = std::env::var("PRESENCE_WORKSPACE") {
+        let p = PathBuf::from(w);
+        let ws_candidates = [
+            p.join("organs/shell/organ-shell.exe"),
+            p.join("organs/shell/organ-shell"),
+            p.join("registry/shell/organ-shell.exe"),
+            p.join("registry/shell/organ-shell"),
+        ];
+        for c in &ws_candidates {
+            if c.is_file() {
+                return Some(c.clone());
+            }
+        }
+    }
+    None
+}
+
 pub fn execute(ctx: &ToolCtx, name: &str, args: &Value) -> String {
     match name {
         "manage_package" => {
@@ -1213,6 +1242,27 @@ pub fn execute(ctx: &ToolCtx, name: &str, args: &Value) -> String {
         
         "run_command" => {
             let command = args.get("command").and_then(Value::as_str).unwrap_or("");
+            // Dynamic delegation to organ-shell if mounted
+            if let Some(shell_bin) = find_organ_shell_binary(&ctx.desk) {
+                let mut cmd = Command::new(&shell_bin);
+                cmd.args(&["--tool", "exec_command", "--command", command]);
+                cmd.current_dir(&ctx.desk);
+                if let Ok(output) = cmd.output() {
+                    if let Ok(resp) = serde_json::from_slice::<Value>(&output.stdout) {
+                        if resp.get("status").and_then(Value::as_str) == Some("ok") {
+                            let stdout = resp.get("stdout").and_then(Value::as_str).unwrap_or("");
+                            let stderr = resp.get("stderr").and_then(Value::as_str).unwrap_or("");
+                            let exit_code = resp.get("exit_code").and_then(Value::as_i64).unwrap_or(0);
+                            let mut s = format!("exit: {exit_code}\n{stdout}");
+                            if !stderr.trim().is_empty() {
+                                s.push_str("\n[stderr]\n");
+                                s.push_str(stderr);
+                            }
+                            return truncate(&s, cfg().limits.tool_output);
+                        }
+                    }
+                }
+            }
             let mut child = match Command::new("sh")
                 .arg("-c")
                 .arg(command)
