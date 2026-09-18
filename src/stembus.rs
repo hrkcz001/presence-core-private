@@ -201,6 +201,7 @@ target_agent: Some("mechanic".into()),
             ],
             reflexes: vec![],
             compatibility: None,
+            dependencies: None,
             core: None,
             ui: None,
         };

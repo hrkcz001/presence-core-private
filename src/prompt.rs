@@ -1,4 +1,4 @@
-﻿//! System prompt assembly. Constitution (live workspace files) + operational
+//! System prompt assembly. Constitution (live workspace files) + operational
 //! part. main.rs calls build().
 
 use std::path::Path;

@@ -109,6 +109,142 @@ pub struct OrganCompatibility {
     pub features: Option<Vec<String>>,
 }
 
+
+/// Dependency on another Presence organ.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct OrganDep {
+    pub name: String,
+    #[serde(default)]
+    pub optional: bool,
+}
+
+/// Dependency on a host system binary (managed via Scoop or Nix/Guix).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct SystemDep {
+    pub binary: String,
+    #[serde(default)]
+    pub optional: bool,
+    #[serde(default)]
+    pub scoop: Option<String>,
+    #[serde(default)]
+    pub nix: Option<String>,
+    #[serde(default)]
+    pub guix: Option<String>,
+    #[serde(default)]
+    pub disables_tools: Vec<String>,
+    #[serde(default)]
+    pub disables_features: Vec<String>,
+}
+
+impl SystemDep {
+    pub fn target_package(&self) -> Option<&str> {
+        #[cfg(windows)]
+        {
+            self.scoop.as_deref().or(Some(&self.binary))
+        }
+        #[cfg(not(windows))]
+        {
+            if std::env::var("GUIX_ENVIRONMENT").is_ok() || which_cmd("guix") {
+                self.guix.as_deref().or(self.nix.as_deref()).or(Some(&self.binary))
+            } else {
+                self.nix.as_deref().or(self.guix.as_deref()).or(Some(&self.binary))
+            }
+        }
+    }
+
+    pub fn install_hint(&self) -> String {
+        let pkg = self.target_package().unwrap_or(&self.binary);
+        #[cfg(windows)]
+        {
+            format!("packager_install(package: \"{pkg}\") [host fallback: scoop install {pkg}]")
+        }
+        #[cfg(not(windows))]
+        {
+            if std::env::var("GUIX_ENVIRONMENT").is_ok() || which_cmd("guix") {
+                format!("packager_install(package: \"{pkg}\") [host fallback: guix install {pkg}]")
+            } else {
+                format!("packager_install(package: \"{pkg}\") [host fallback: nix-env -iA nixpkgs.{pkg}]")
+            }
+        }
+    }
+}
+
+/// Specification of organ dependencies in organ.yaml.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct OrganDependencies {
+    #[serde(default)]
+    pub runtime: Option<String>,
+    #[serde(default)]
+    pub organs: Vec<OrganDep>,
+    #[serde(default)]
+    pub system: Vec<SystemDep>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DependencyReport {
+    pub is_runnable: bool,
+    pub runtime_ok: bool,
+    pub missing_runtime: Option<String>,
+    pub missing_required_organs: Vec<String>,
+    pub missing_optional_organs: Vec<String>,
+    pub missing_required_system: Vec<SystemDep>,
+    pub missing_optional_system: Vec<SystemDep>,
+    pub disabled_tools: Vec<String>,
+    pub disabled_features: Vec<String>,
+}
+
+impl OrganDependencies {
+    pub fn evaluate(&self, mounted_organs: &[String]) -> DependencyReport {
+        let mut report = DependencyReport {
+            is_runnable: true,
+            runtime_ok: true,
+            missing_runtime: None,
+            missing_required_organs: Vec::new(),
+            missing_optional_organs: Vec::new(),
+            missing_required_system: Vec::new(),
+            missing_optional_system: Vec::new(),
+            disabled_tools: Vec::new(),
+            disabled_features: Vec::new(),
+        };
+
+        if let Some(rt) = &self.runtime {
+            if !which_cmd(rt) {
+                report.runtime_ok = false;
+                report.missing_runtime = Some(rt.clone());
+                report.is_runnable = false;
+            }
+        }
+
+        for od in &self.organs {
+            let present = mounted_organs.iter().any(|m| m.eq_ignore_ascii_case(&od.name));
+            if !present {
+                if od.optional {
+                    report.missing_optional_organs.push(od.name.clone());
+                } else {
+                    report.missing_required_organs.push(od.name.clone());
+                    report.is_runnable = false;
+                }
+            }
+        }
+
+        for sd in &self.system {
+            let present = which_cmd(&sd.binary);
+            if !present {
+                if sd.optional {
+                    report.disabled_tools.extend(sd.disables_tools.clone());
+                    report.disabled_features.extend(sd.disables_features.clone());
+                    report.missing_optional_system.push(sd.clone());
+                } else {
+                    report.missing_required_system.push(sd.clone());
+                    report.is_runnable = false;
+                }
+            }
+        }
+
+        report
+    }
+}
+
 impl OrganCompatibility {
     pub fn validate(&self, host_presence_version: &str) -> Result<(), String> {
         if let Some(req_str) = &self.presence {
@@ -165,6 +301,8 @@ pub struct ToolManifest {
     pub reflexes: Vec<OrganReflexDef>,
     #[serde(default)]
     pub compatibility: Option<OrganCompatibility>,
+    #[serde(default)]
+    pub dependencies: Option<OrganDependencies>,
     #[serde(default)]
     pub core: Option<bool>,
     #[serde(default)]
@@ -365,6 +503,14 @@ pub fn discover_manifests_in_dirs(dirs: &[PathBuf]) -> Vec<DiscoveredTool> {
                         eprintln!("presence: organ '{}' skipped (incompatible): {reason}", manifest.name);
                         return;
                     }
+                    if let Some(deps) = &manifest.dependencies {
+                        let seen_vec: Vec<String> = seen.iter().cloned().collect();
+                        let report = deps.evaluate(&seen_vec);
+                        if !report.is_runnable {
+                            eprintln!("presence: organ '{}' skipped (unmet dependencies): system: {:?}, runtime: {:?}", manifest.name, report.missing_required_system, report.missing_runtime);
+                            return;
+                        }
+                    }
                     if !seen.contains(&manifest.name) {
                         seen.insert(manifest.name.clone());
                         discovered.push(DiscoveredTool {
@@ -543,8 +689,18 @@ pub fn defs() -> Vec<Value> {
     ];
 
     for dt in discover_dynamic_tools() {
+        let disabled_tools = if let Some(deps) = &dt.manifest.dependencies {
+            let report = deps.evaluate(&[]);
+            report.disabled_tools
+        } else {
+            Vec::new()
+        };
+
         if !dt.manifest.tools.is_empty() {
             for t in &dt.manifest.tools {
+                if disabled_tools.contains(&t.name) {
+                    continue;
+                }
                 if !list.iter().any(|existing| {
                     existing.pointer("/function/name").and_then(Value::as_str) == Some(&t.name)
                 }) {
@@ -561,14 +717,16 @@ pub fn defs() -> Vec<Value> {
         } else if !list.iter().any(|existing| {
             existing.pointer("/function/name").and_then(Value::as_str) == Some(&dt.manifest.name)
         }) {
-            list.push(json!({
-                "type": "function",
-                "function": {
-                    "name": dt.manifest.name,
-                    "description": dt.manifest.description,
-                    "parameters": dt.manifest.parameters,
-                }
-            }));
+            if !disabled_tools.contains(&dt.manifest.name) {
+                list.push(json!({
+                    "type": "function",
+                    "function": {
+                        "name": dt.manifest.name,
+                        "description": dt.manifest.description,
+                        "parameters": dt.manifest.parameters,
+                    }
+                }));
+            }
         }
     }
 
@@ -727,6 +885,17 @@ fn which_cmd(cmd: &str) -> bool {
             }
         }
     }
+    #[cfg(windows)]
+    {
+        if let Ok(userprofile) = std::env::var("USERPROFILE") {
+            let shim_dir = std::path::PathBuf::from(userprofile).join("scoop").join("shims");
+            let cmd_clean = cmd.trim_end_matches(".exe");
+            let shim = shim_dir.join(format!("{cmd_clean}.exe"));
+            if shim.is_file() {
+                return true;
+            }
+        }
+    }
     false
 }
 
@@ -759,6 +928,20 @@ pub fn execute_dynamic_tool(tool: &DiscoveredTool, args: &Value) -> String {
             .map(PathBuf::from)
             .unwrap_or_else(|_| PathBuf::from("."));
         candidates.push(presence_workspace.join("tools").join(&manifest.name).join(entry_name));
+        if let Ok(cur_exe) = std::env::current_exe() {
+            if let Some(dir) = cur_exe.parent() {
+                candidates.push(dir.join(entry_name));
+                candidates.push(dir.join(format!("{entry_name}.exe")));
+                if let Some(p2) = dir.parent() {
+                    candidates.push(p2.join(entry_name));
+                    candidates.push(p2.join(format!("{entry_name}.exe")));
+                }
+            }
+        }
+        candidates.push(PathBuf::from("C:/Users/hrkcz001/Dev/presence/target/release").join(entry_name));
+        candidates.push(PathBuf::from("C:/Users/hrkcz001/Dev/presence/target/release").join(format!("{entry_name}.exe")));
+        candidates.push(PathBuf::from("C:/Users/hrkcz001/Dev/presence-organs/target/release").join(format!("organ-{entry_name}.exe")));
+        candidates.push(PathBuf::from("C:/Users/hrkcz001/Dev/presence-organs/target/release").join(format!("{entry_name}.exe")));
 
         candidates.into_iter().find(|p| p.exists()).unwrap_or_else(|| tool.dir.join(entry_name))
     };
@@ -906,6 +1089,11 @@ fn find_organ_shell_binary(desk: &Path) -> Option<PathBuf> {
         desk.join("organs/shell/organ-shell"),
         desk.join("registry/shell/organ-shell.exe"),
         desk.join("registry/shell/organ-shell"),
+        desk.join("../presence-organs/target/release/organ-shell.exe"),
+        desk.join("../presence-organs/target/release/organ-shell"),
+        desk.join("../../presence-organs/target/release/organ-shell.exe"),
+        desk.join("../../presence-organs/target/release/organ-shell"),
+        PathBuf::from("C:/Users/hrkcz001/Dev/presence-organs/target/release/organ-shell.exe"),
     ];
     for c in &candidates {
         if c.is_file() {
@@ -1234,15 +1422,8 @@ pub fn execute(ctx: &ToolCtx, name: &str, args: &Value) -> String {
                 "context.status error: lock".into()
             }
         }
-                "winsense" => {
-            let action = args.get("action").and_then(Value::as_str).unwrap_or("overview");
-            crate::winsense::query(action)
-        }
-
-        
-        "run_command" => {
+                "run_command" => {
             let command = args.get("command").and_then(Value::as_str).unwrap_or("");
-            // Dynamic delegation to organ-shell if mounted
             if let Some(shell_bin) = find_organ_shell_binary(&ctx.desk) {
                 let mut cmd = Command::new(&shell_bin);
                 cmd.args(&["--tool", "exec_command", "--command", command]);
@@ -1259,69 +1440,17 @@ pub fn execute(ctx: &ToolCtx, name: &str, args: &Value) -> String {
                                 s.push_str(stderr);
                             }
                             return truncate(&s, cfg().limits.tool_output);
+                        } else {
+                            let msg = resp.get("message").and_then(Value::as_str).unwrap_or("organ-shell failed");
+                            return format!("organ-shell error: {msg}");
                         }
                     }
+                    return String::from_utf8_lossy(&output.stderr).to_string();
+                } else {
+                    return "failed to execute organ-shell binary".to_string();
                 }
             }
-            let mut child = match Command::new("sh")
-                .arg("-c")
-                .arg(command)
-                .env("PATH", build_agent_path())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .stdin(Stdio::null())
-                .spawn()
-            {
-                Ok(c) => c,
-                Err(e) => return format!("run_command error: {e}"),
-            };
-
-            let sandbox_cfg = crate::sandbox::SandboxConfig {
-                max_memory_bytes: Some(1024 * 1024 * 1024),
-                kill_on_parent_exit: true,
-                timeout_seconds: cfg().limits.run_command_timeout_secs,
-                ..Default::default()
-            };
-            let _guard = crate::sandbox::ProcessGuard::attach(&child, &sandbox_cfg);
-            // Drain both pipes in threads: a full pipe would otherwise
-            // block the child and fake a timeout.
-            let mut out_r = child.stdout.take().expect("stdout");
-            let mut err_r = child.stderr.take().expect("stderr");
-            let t_out = std::thread::spawn(move || {
-                let mut b = Vec::new();
-                let _ = out_r.read_to_end(&mut b);
-                b
-            });
-            let t_err = std::thread::spawn(move || {
-                let mut b = Vec::new();
-                let _ = err_r.read_to_end(&mut b);
-                b
-            });
-            let deadline = Instant::now() + Duration::from_secs(cfg().limits.run_command_timeout_secs);
-            let status = loop {
-                match child.try_wait() {
-                    Ok(Some(st)) => break st,
-                    Ok(None) if Instant::now() < deadline => {
-                        std::thread::sleep(Duration::from_millis(50))
-                    }
-                    Ok(None) => {
-                        let _ = child.kill();
-                        let _ = child.wait();
-                        return format!("run_command error: timeout after {}s, killed", cfg().limits.run_command_timeout_secs);
-                    }
-                    Err(e) => return format!("run_command error: {e}"),
-                }
-            };
-            let out_b = t_out.join().unwrap_or_default();
-            let err_b = t_err.join().unwrap_or_default();
-            let out = String::from_utf8_lossy(&out_b);
-            let err = String::from_utf8_lossy(&err_b);
-            let mut s = format!("exit: {status}\n{out}");
-            if !err.trim().is_empty() {
-                s.push_str("\n[stderr]\n");
-                s.push_str(&err);
-            }
-            truncate(&s, cfg().limits.tool_output)
+            "Tool 'run_command' is unavailable: organ-shell is not mounted. The Presence kernel has no built-in execution capability.".to_string()
         }
         _ => {
             for dt in discover_dynamic_tools() {
@@ -1721,6 +1850,44 @@ print(f"ECHO: {args.msg}")
         }));
         assert!(out.contains("\"status\": \"ok\"") || out.contains("\"status\":\"ok\""), "expected status ok, got: {out}");
         assert!(out.contains("test-chan"), "expected test-chan in output: {out}");
+    }
+
+    #[test]
+    fn test_organ_dependency_evaluation() {
+        let yaml = r#"
+runtime: bun
+organs:
+  - name: io
+    optional: false
+  - name: winsense
+    optional: true
+system:
+  - binary: nonexistent_optional_tool_xyz
+    optional: true
+    scoop: nonexistent
+    nix: nonexistent
+    disables_tools:
+      - submit_github
+    disables_features:
+      - github_sync
+  - binary: nonexistent_required_tool_xyz
+    optional: false
+    scoop: nonexistent
+"#;
+        let deps: OrganDependencies = serde_yaml::from_str(yaml).unwrap();
+        let report = deps.evaluate(&["io".to_string()]);
+        assert!(!report.is_runnable);
+        assert_eq!(report.missing_required_system.len(), 1);
+        assert_eq!(report.missing_required_system[0].binary, "nonexistent_required_tool_xyz");
+        assert_eq!(report.missing_optional_organs, vec!["winsense"]);
+        assert!(report.disabled_tools.contains(&"submit_github".to_string()));
+    }
+
+    #[test]
+    fn test_run_command_unmounted_returns_unavailable() {
+        let (ctx, _g) = ctx();
+        let out = execute(&ctx, "run_command", &serde_json::json!({"command": "echo pure_kernel"}));
+        assert!(!out.contains("sh: ") && !out.contains("cannot execute"), "Must not invoke sh directly: {out}");
     }
 
 }
