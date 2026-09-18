@@ -140,6 +140,8 @@ pub struct ToolManifest {
     pub name: String,
     #[serde(default)]
     pub version: Option<String>,
+    #[serde(default)]
+    pub manual: Option<String>,
     pub description: String,
     #[serde(default)]
     pub instructions: Option<String>,
@@ -1500,6 +1502,18 @@ permissions:
         assert_eq!(discovered[0].manifest.name, "dummy");
         assert_eq!(discovered[0].manifest.description, "A dummy test tool");
         assert_eq!(discovered[0].manifest.permissions.timeout_seconds, Some(15));
+    }
+
+    #[test]
+    fn test_organ_manifest_with_manual() {
+        let yaml = r#"
+name: manual_sample
+version: "0.3.0"
+manual: MANUAL.md
+description: "Sample organ with manual"
+"#;
+        let manifest: ToolManifest = serde_yaml::from_str(yaml).expect("parse manifest with manual");
+        assert_eq!(manifest.manual.as_deref(), Some("MANUAL.md"));
     }
 
     #[test]

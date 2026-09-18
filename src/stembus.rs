@@ -173,6 +173,7 @@ mod tests {
         let manifest = ToolManifest {
             name: "test_organ".to_string(),
             version: Some("1.0.0".into()),
+            manual: None,
             description: "A test sensory organ".into(),
             instructions: None,
             entrypoint: Some("organ-test.exe".into()),
