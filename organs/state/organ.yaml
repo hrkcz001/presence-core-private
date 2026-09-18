@@ -1,55 +1,65 @@
 name: state
 version: "0.3.0"
+manual: MANUAL.md
+type: "cli"
 description: "Presence cognitive state preservation, session pause, and hibernation"
 instructions: "Snapshot and restore agent card state; pause sessions safely into rest mode."
-entrypoint: "state.ts"
-type: "typescript"
-senses:
-  - name: sleep_state
-    description: "Current hibernation posture and downtime indicators"
+author: "hrkcz001"
+license: "Apache-2.0"
+entrypoint: "organ-state.exe"
+
+permissions:
+  timeout_seconds: 15
+
+compatibility:
+  presence: "^0.3.0"
+  api_version: 1
+
 tools:
   - name: pause_session
-    description: "Pause session and persist state snapshot"
+    description: "Pause session safely, create a state snapshot, and transition agent card into rest mode"
     parameters:
       type: object
       properties:
         reason:
           type: string
-          description: "Reason for pausing"
-      required: ["reason"]
+          description: "Reason for pausing the session"
+      required:
+        - reason
+
   - name: snapshot
-    description: "Create an explicit labeled state snapshot"
+    description: "Create an explicit labeled state snapshot of the active agent card"
     parameters:
       type: object
       properties:
         label:
           type: string
-          description: "Snapshot label or checkpoint name"
-      required: ["label"]
+          description: "Snapshot label or checkpoint name (default 'manual')"
+
   - name: restore
-    description: "Inspect or restore previous state snapshot"
+    description: "Restore active agent card from a previous snapshot"
     parameters:
       type: object
       properties:
         label:
           type: string
-          description: "Snapshot label to restore (empty for latest)"
-      required: []
-commands:
-  - name: pause
-    tool: pause_session
-    description: "Pause session and save state"
-  - name: save
-    tool: snapshot
-    description: "Create state snapshot"
+          description: "Snapshot label to restore (empty for most recent)"
+
+senses:
+  - name: sleep_state
+    description: "Current hibernation posture, rest mode, and downtime indicators"
+
 stimuli:
   - name: stale_goal
     description: "Emitted when active goals in GOALS.md remain unupdated for > 12 hours"
     cadence_secs: 900
     action: "alert"
     target_agent: "arche"
-permissions:
-  timeout_seconds: 15
-compatibility:
-  presence: "^0.3.0"
-  api_version: 1
+
+commands:
+  - name: pause
+    description: "Pause active session and create state snapshot"
+    tool: pause_session
+  - name: save
+    description: "Create immediate state snapshot"
+    tool: snapshot
