@@ -505,6 +505,32 @@ fn agent_loop_mode(
 }
 
 fn main() {
+    let raw_args: Vec<String> = std::env::args().collect();
+    if raw_args.len() > 1 && (raw_args[1] == "dashboard" || raw_args[1] == "--dashboard") {
+        let spawned = std::process::Command::new("presence-dashboard")
+            .spawn()
+            .or_else(|_| {
+                let candidate = std::env::current_exe()
+                    .ok()
+                    .and_then(|p| p.parent().map(|d| d.join("presence-dashboard.exe")));
+                if let Some(cand) = candidate {
+                    std::process::Command::new(cand).spawn()
+                } else {
+                    Err(std::io::Error::new(std::io::ErrorKind::NotFound, "presence-dashboard binary not found"))
+                }
+            });
+        match spawned {
+            Ok(c) => {
+                println!("presence: dashboard launched (PID {})", c.id());
+                std::process::exit(0);
+            }
+            Err(e) => {
+                eprintln!("presence: failed to launch presence-dashboard: {e}");
+                std::process::exit(1);
+            }
+        }
+    }
+
     let cfg = config::Config::load();
     let base_url = cfg.base_url();
     let api_key = cfg.api_key();
