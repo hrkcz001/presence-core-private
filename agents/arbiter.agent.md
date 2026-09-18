@@ -8,6 +8,7 @@ organs:
   - git
   - mood
   - social
+  - ask
 cord:
   reflexes: active
 state:

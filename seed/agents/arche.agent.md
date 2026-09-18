@@ -9,6 +9,8 @@ organs:
   - winsense
   - mood
   - social
+  - ask
+  - vox
 cord:
   reflexes: active
 state:

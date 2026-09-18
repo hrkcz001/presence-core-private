@@ -652,24 +652,8 @@ fn main() {
                 acp::send(&json!({"jsonrpc": "2.0", "id": id, "result": {"sessionId": sid}}));
                 // native slash commands: Zed renders these in the input
                 // menu with autocomplete once announced
-                let mut avail_cmds = vec![
-                    json!({"name": "pause", "description": "Pause circle immediately"}),
-                    json!({"name": "continue", "description": "Resume paused circle"}),
-                    json!({"name": "agent", "description": "Switch active persona (/agent <name>)"}),
-                    json!({"name": "agents", "description": "List available personas"}),
-                    json!({"name": "journal", "description": "Display quest journal and memory"}),
-                ];
-
-                for dt in tools::discover_dynamic_tools() {
-                    for (name, desc) in dt.manifest.command_descriptors() {
-                        if !avail_cmds.iter().any(|c| c.get("name").and_then(Value::as_str) == Some(&name)) {
-                            avail_cmds.push(json!({
-                                "name": name,
-                                "description": desc,
-                            }));
-                        }
-                    }
-                }
+                let active_p = prompt::active_persona(&PRESENCE_WORKSPACE, &memory_dir);
+                let avail_cmds = prompt::available_commands_for_persona(&PRESENCE_WORKSPACE, &active_p);
 
                 acp::send(&json!({
                     "jsonrpc": "2.0",
@@ -917,6 +901,16 @@ Switch persona via: `/agent <name>`");
                             let _ = std::fs::write(memory_dir.join("agent.active"), cmd_args);
                             acp::agent_chunk(&session_id, None, &format!("Switched active persona to **{cmd_args}**.
 "));
+
+                            let updated_cmds = prompt::available_commands_for_persona(&PRESENCE_WORKSPACE, cmd_args);
+                            acp::send(&json!({
+                                "jsonrpc": "2.0",
+                                "method": "session/update",
+                                "params": {"sessionId": session_id, "update": {
+                                    "sessionUpdate": "available_commands_update",
+                                    "availableCommands": updated_cmds,
+                                }},
+                            }));
                         }
                         acp::send(&json!({
                             "jsonrpc": "2.0", "id": id,

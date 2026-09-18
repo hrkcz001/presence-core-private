@@ -7,6 +7,70 @@ fn read_if_exists(p: &Path) -> Option<String> {
     std::fs::read_to_string(p).ok()
 }
 
+
+pub fn active_persona_mounted_organs(root: &Path, persona: &str) -> Option<Vec<String>> {
+    let agent_candidates = [
+        format!("agents/{persona}.agent.md"),
+        format!("seed/agents/{persona}.agent.md"),
+    ];
+    for cand in &agent_candidates {
+        if let Some(content) = read_if_exists(&root.join(cand)) {
+            // Check frontmatter between leading --- and next ---
+            let lines: Vec<&str> = content.lines().collect();
+            if lines.first().map(|l| l.trim()) == Some("---") {
+                if let Some(end_idx) = lines[1..].iter().position(|l| l.trim() == "---") {
+                    let frontmatter = lines[1..=end_idx].join("\n");
+                    if let Ok(val) = serde_yaml::from_str::<serde_json::Value>(&frontmatter) {
+                        if let Some(arr) = val.get("organs").and_then(|v| v.as_array()) {
+                            let list = arr.iter().filter_map(|item| item.as_str().map(|s| s.to_string())).collect();
+                            return Some(list);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+pub fn available_commands_for_persona(root: &Path, persona: &str) -> Vec<serde_json::Value> {
+    use serde_json::json;
+
+    let mut avail_cmds = vec![
+        json!({"name": "pause", "description": "Pause circle immediately"}),
+        json!({"name": "continue", "description": "Resume paused circle"}),
+        json!({"name": "agent", "description": "Switch active persona (/agent <name>)"}),
+        json!({"name": "agents", "description": "List available personas"}),
+        json!({"name": "journal", "description": "Display quest journal and memory"}),
+    ];
+
+    let mounted_organs = active_persona_mounted_organs(root, persona);
+
+    for dt in crate::tools::discover_dynamic_tools() {
+        if let Some(mounted) = &mounted_organs {
+            let is_mounted = mounted.iter().any(|m| {
+                m.eq_ignore_ascii_case(&dt.manifest.name)
+                    || format!("organ-{m}").eq_ignore_ascii_case(&dt.manifest.name)
+                    || dt.manifest.name.eq_ignore_ascii_case(&format!("organ-{m}"))
+            });
+            if !is_mounted {
+                continue;
+            }
+        }
+
+        for (name, desc) in dt.manifest.command_descriptors() {
+            if !avail_cmds.iter().any(|c| c.get("name").and_then(serde_json::Value::as_str) == Some(&name)) {
+                avail_cmds.push(json!({
+                    "name": name,
+                    "description": desc,
+                }));
+            }
+        }
+    }
+
+    avail_cmds
+}
+
 pub fn active_persona(root: &Path, memory_dir: &Path) -> String {
     if let Ok(s) = std::fs::read_to_string(memory_dir.join("agent.active")) {
         let s = s.trim();
