@@ -1,9 +1,10 @@
-﻿name: channel
+name: channel
 version: "0.3.0"
-description: "External communication interface organ (CLI clients, terminal channels, message inbox/outbox)"
+core: true
+description: "Universal communication channel and client bridge organ for Presence (CLI, ACP, Zed, message inbox/outbox)"
 instructions: "Use send_reply to transmit conscious answers and final verdicts back to the active user/client. Do not dump loose prose without this tool."
-entrypoint: "channel.ts"
-type: "typescript"
+entrypoint: "organ-channel"
+type: "cli"
 senses:
   - name: incoming_inbox
     description: "Pending incoming user inquiries and CLI requests"

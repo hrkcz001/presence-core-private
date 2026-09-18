@@ -5,7 +5,7 @@
 //! consumed at phase boundaries only — never mid-phase.
 
 use crate::asides;
-use crate::acp;
+use crate::event::{self, EventSink, PresenceEvent};
 use crate::i18n;
 use crate::friction::{self, FrictionKind};
 use crate::llm::Bridge;
@@ -59,6 +59,7 @@ pub struct PhaseCtx {
     pub tool_defs: Arc<Vec<Value>>,
     pub memory_dir: PathBuf,
     pub base_system: String,
+    pub sink: Arc<dyn EventSink>,
 }
 
 /// Run the full circle until the goal is done or the owner stops.
@@ -107,15 +108,15 @@ pub fn run(
                     state.parked = true;
                     {
                         let id = format!("st-pause-{}", uuid_counter());
-                        acp::tool_call(&sid, &id, &crate::i18n::paused(&crate::asides::take_or_fallback(&ctx.memory_dir, "pause")), "other");
-                        acp::tool_call_update(&sid, &id, "completed", "");
+                        ctx.sink.emit(PresenceEvent::tool_start(&sid, &id, &crate::i18n::paused(&crate::asides::take_or_fallback(&ctx.memory_dir, "pause")), "other"));
+                        ctx.sink.emit(PresenceEvent::tool_update(&sid, &id, "completed", ""));
                     }
                 }
                 Ok(Mail::Stop) => {
                     {
                 let id = format!("st-stop-{}", state.cycles);
-                acp::tool_call(&sid, &id, &i18n::goal_stopped(), "other");
-                acp::tool_call_update(&sid, &id, "completed", "");
+                ctx.sink.emit(PresenceEvent::tool_start(&sid, &id, &i18n::goal_stopped(), "other"));
+                ctx.sink.emit(PresenceEvent::tool_update(&sid, &id, "completed", ""));
             }
                     return;
                 }
@@ -131,8 +132,8 @@ pub fn run(
                     state.parked = false;
                     {
                         let id = format!("st-resume-{}", uuid_counter());
-                        acp::tool_call(&sid, &id, &crate::i18n::resumed(&crate::asides::take_or_fallback(&ctx.memory_dir, "resume")), "other");
-                        acp::tool_call_update(&sid, &id, "completed", "");
+                        ctx.sink.emit(PresenceEvent::tool_start(&sid, &id, &crate::i18n::resumed(&crate::asides::take_or_fallback(&ctx.memory_dir, "resume")), "other"));
+                        ctx.sink.emit(PresenceEvent::tool_update(&sid, &id, "completed", ""));
                     }
                     owner_input = Some(text);
                 }
@@ -176,7 +177,7 @@ pub fn run(
                 Phase::Verification => "\u{25D3}",
                 Phase::Execution => "\u{25B2}",
             };
-            acp::tool_call(&sid, &phase_call_id, &format!("{icon} {}", phase_now.name()), "other");
+            ctx.sink.emit(PresenceEvent::tool_start(&sid, &phase_call_id, format!("{icon} {}", phase_now.name()), "other"));
 
         // pinned excerpts (context.pin) ride at high priority
         let _pinned_block = {
@@ -230,8 +231,8 @@ pub fn run(
         });
         // pre-flight (PLAN s3): refuse to assemble over budget
         if est > limit {
-            acp::agent_chunk(&sid, None, &format!("[presence] context over budget ({est} > {limit}) — compacting
-"));
+            ctx.sink.emit(PresenceEvent::message_chunk(&sid, format!("[presence] context over budget ({est} > {limit}) - compacting
+")));
             let compact_req = crate::budgeter::compact_prompt(&phase_messages);
             let mut compact_msgs = vec![
                 json!({"role": "system", "content": "You are a compactor."}),
@@ -249,8 +250,8 @@ pub fn run(
                 phase_messages.push(json!({"role": "user", "content": format!("[digest of prior context]
 {d}")}));
             } else {
-                acp::agent_chunk(&sid, None, "[presence] compaction failed — surfacing to owner, stopping circle
-");
+                ctx.sink.emit(PresenceEvent::message_chunk(&sid, "[presence] compaction failed - surfacing to owner, stopping circle
+"));
                 return;
             }
         }
@@ -294,8 +295,8 @@ pub fn run(
                     state.cap_retry = true;
                     {
                         let id = format!("st-cap-{}", uuid_counter());
-                        acp::tool_call(&sid, &id, &crate::i18n::cap_retry(), "other");
-                        acp::tool_call_update(&sid, &id, "completed", "");
+                        ctx.sink.emit(PresenceEvent::tool_start(&sid, &id, &crate::i18n::cap_retry(), "other"));
+                        ctx.sink.emit(PresenceEvent::tool_update(&sid, &id, "completed", ""));
                     }
                     let mut guard = ctx.bridge.lock().unwrap();
                     crate::agent_loop_mode(
@@ -349,26 +350,24 @@ pub fn run(
                                         FrictionKind::RulePatch,
                                         "schema-strike amendment drafted -> prompt-amendment.md",
                                     );
-                                    acp::agent_chunk(
+                                    ctx.sink.emit(PresenceEvent::message_chunk(
                                         &sid,
-                                        None,
                                         "[presence] self-repair: prompt amendment drafted (memory/prompt-amendment.md)
 ",
-                                    );
+                                    ));
                                 }
                             }
                             {
                                 let id = format!("st-strike-{}-{}", state.cycles, state.strikes);
-                                acp::tool_call(&sid, &id, &i18n::phase_strike(state.strikes, &e), "other");
-                                acp::tool_call_update(&sid, &id, "completed", "");
+                                ctx.sink.emit(PresenceEvent::tool_start(&sid, &id, &i18n::phase_strike(state.strikes, &e), "other"));
+                                ctx.sink.emit(PresenceEvent::tool_update(&sid, &id, "completed", ""));
                             }
                             if state.strikes >= 3 {
                                 state.plain_mode = true;
-                                acp::thought_chunk(
+                                ctx.sink.emit(PresenceEvent::thought_chunk(
                                     &sid,
-                                    None,
-                                    &i18n::plain_mode(),
-                                );
+                                    i18n::plain_mode(),
+                                ));
                                 break Ok(text);
                             }
                             phase_messages.push(json!({"role": "assistant", "content": text}));
@@ -387,14 +386,14 @@ pub fn run(
                         // continues, the owner loses nothing
                         state.plain_mode = true;
                         let id = format!("st-plain-{}", uuid_counter());
-                        acp::tool_call(&sid, &id, &crate::i18n::plain_fallback(), "other");
-                        acp::tool_call_update(&sid, &id, "completed", "");
+                        ctx.sink.emit(PresenceEvent::tool_start(&sid, &id, &crate::i18n::plain_fallback(), "other"));
+                        ctx.sink.emit(PresenceEvent::tool_update(&sid, &id, "completed", ""));
                         continue;
                     }
                     // provider flakiness (content-blocked etc. after all
                     // retries) must NOT kill the circle: park it instead —
                     // the next owner prompt or a later wake resumes.
-                    acp::error_card(&sid, &e);
+                    ctx.sink.emit(PresenceEvent::error(&sid, format!("err-{}", uuid::Uuid::new_v4()), crate::i18n::error_title(&e), &e));
                     state.parked = true;
                     break Err(e);
                 }
@@ -476,7 +475,7 @@ revised plan: {}",
             },
             None => String::new(),
         };
-        acp::tool_call_update(&sid, &phase_call_id, "completed", &phase_body.chars().take(1200).collect::<String>());
+        ctx.sink.emit(PresenceEvent::tool_update(&sid, &phase_call_id, "completed", phase_body.chars().take(1200).collect::<String>()));
         // native plan checklist: the four phases of this cycle
         {
             let phases = [
@@ -496,7 +495,7 @@ revised plan: {}",
                     (ph.name().to_string(), st)
                 })
                 .collect();
-            acp::plan(&sid, &entries);
+            ctx.sink.emit(PresenceEvent::plan(&sid, entries.iter().map(|(c, st)| (c.clone(), st.to_string())).collect()));
         }
 
         // sleep-state snapshot: the goal survives process death
@@ -539,15 +538,15 @@ revised plan: {}",
             let body = body.join("
 ").trim().to_string();
             if !body.is_empty() {
-                acp::agent_chunk(&sid, None, &format!("{body}
+                ctx.sink.emit(PresenceEvent::message_chunk(&sid, format!("{body}
 
-"));
+")));
             }
             if done {
                 {
                 let id = format!("st-done-{}", state.cycles);
-                acp::tool_call(&sid, &id, &i18n::goal_done(), "other");
-                acp::tool_call_update(&sid, &id, "completed", "");
+                ctx.sink.emit(PresenceEvent::tool_start(&sid, &id, &i18n::goal_done(), "other"));
+                ctx.sink.emit(PresenceEvent::tool_update(&sid, &id, "completed", ""));
             }
                 if let Ok(mut t) = transcript.lock() {
                     t.push(crate::Entry {
@@ -591,11 +590,11 @@ revised plan: {}",
                                 "content": format!("[runtime] Quest done. Next quest from the journal: \"{}\". Begin its circle.", nq.text),
                             }));
                             let id = format!("q-next-{}", state.cycles);
-                            acp::tool_call(&sid, &id, &crate::i18n::circle_start(&nq.text), "other");
-                            acp::tool_call_update(&sid, &id, "completed", "");
+                            ctx.sink.emit(PresenceEvent::tool_start(&sid, &id, &crate::i18n::circle_start(&nq.text), "other"));
+                            ctx.sink.emit(PresenceEvent::tool_update(&sid, &id, "completed", ""));
                         }
                         None => {
-                            acp::thought_chunk(&sid, None, &crate::i18n::journal_empty());
+                            ctx.sink.emit(PresenceEvent::thought_chunk(&sid, crate::i18n::journal_empty()));
                             return;
                         }
                     }

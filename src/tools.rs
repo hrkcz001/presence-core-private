@@ -1655,7 +1655,7 @@ print(f"ECHO: {args.msg}")
             "message": "hello from ts test",
             "channel": "test-chan"
         }));
-        assert!(out.contains("\"status\": \"ok\""), "expected status ok, got: {out}");
+        assert!(out.contains("\"status\": \"ok\"") || out.contains("\"status\":\"ok\""), "expected status ok, got: {out}");
         assert!(out.contains("test-chan"), "expected test-chan in output: {out}");
     }
 

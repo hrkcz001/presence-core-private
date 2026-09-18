@@ -7,6 +7,7 @@
 //! Wire: JSON-RPC 2.0 over stdio, newline-delimited.
 
 mod acp;
+mod event;
 mod asides;
 mod budgeter;
 mod config;
@@ -743,6 +744,7 @@ fn main() {
                         tool_defs: tool_defs.clone(),
                         memory_dir: memory_dir.clone(),
                         base_system: prompt::build(&root2, &desk, &memory_dir),
+                        sink: Arc::new(event::AcpSink),
                     };
                     let tpath = transcript_path.clone();
                     let goal_head: Arc<Mutex<Vec<Entry>>> = Arc::new(Mutex::new(Vec::new()));
@@ -966,6 +968,7 @@ Switch persona via: `/agent <name>`");
                     tool_defs: tool_defs.clone(),
                     memory_dir: memory_dir.clone(),
                     base_system: prompt::build(&PRESENCE_WORKSPACE, &desk, &memory_dir),
+                    sink: Arc::new(event::AcpSink),
                 };
                 let tpath = transcript_path.clone();
                 let goal_head: Arc<Mutex<Vec<Entry>>> = Arc::new(Mutex::new(Vec::new()));
