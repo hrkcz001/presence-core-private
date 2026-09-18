@@ -6,6 +6,8 @@ organs:
   - state
   - io
   - git
+  - mood
+  - social
 cord:
   reflexes: active
 state:
