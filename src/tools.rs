@@ -293,7 +293,7 @@ pub struct ToolManifest {
     pub tools: Vec<OrganToolDef>,
     #[serde(default)]
     pub permissions: ToolPermissions,
-    #[serde(default)]
+    #[serde(default, alias = "slash_commands")]
     pub commands: Vec<Value>,
     #[serde(default)]
     pub stimuli: Vec<OrganStimulusDef>,
@@ -334,6 +334,31 @@ impl ToolManifest {
             }
         }
         cmds
+    }
+
+    pub fn command_descriptors(&self) -> Vec<(String, String)> {
+        let mut descs = Vec::new();
+        for c in &self.commands {
+            if let Some(s) = c.as_str() {
+                let trimmed = s.trim_start_matches('/').to_lowercase();
+                if !trimmed.is_empty() && !descs.iter().any(|(n, _): &(String, String)| n == &trimmed) {
+                    descs.push((trimmed, format!("Execute {} command", self.name)));
+                }
+            } else if let Some(n) = c.get("name").and_then(|v| v.as_str()) {
+                let trimmed = n.trim_start_matches('/').to_lowercase();
+                let desc = c.get("description")
+                    .and_then(|v| v.as_str())
+                    .map(|d| d.to_string())
+                    .unwrap_or_else(|| format!("Execute {} command", self.name));
+                if !trimmed.is_empty() && !descs.iter().any(|(n, _): &(String, String)| n == &trimmed) {
+                    descs.push((trimmed, desc));
+                }
+            }
+        }
+        if descs.is_empty() {
+            descs.push((self.name.to_lowercase(), self.description.clone()));
+        }
+        descs
     }
 }
 
@@ -505,10 +530,37 @@ pub fn discover_manifests_in_dirs(dirs: &[PathBuf]) -> Vec<DiscoveredTool> {
                     }
                     if let Some(deps) = &manifest.dependencies {
                         let seen_vec: Vec<String> = seen.iter().cloned().collect();
-                        let report = deps.evaluate(&seen_vec);
-                        if !report.is_runnable {
-                            eprintln!("presence: organ '{}' skipped (unmet dependencies): system: {:?}, runtime: {:?}", manifest.name, report.missing_required_system, report.missing_runtime);
-                            return;
+                        let mut report = deps.evaluate(&seen_vec);
+
+                        let policy = cfg().dependencies.install_policy;
+                        match policy {
+                            crate::config::DependencyInstallPolicy::Auto => {
+                                if !report.is_runnable || !report.missing_required_system.is_empty() {
+                                    for dep in &report.missing_required_system {
+                                        let pkg_name = dep.target_package().unwrap_or(&dep.binary);
+                                        eprintln!("presence: auto-installing missing dependency '{pkg_name}' for organ '{}'...", manifest.name);
+                                        let _ = execute_package_manager("install", Some(pkg_name));
+                                    }
+                                    report = deps.evaluate(&seen_vec);
+                                }
+                                if !report.is_runnable {
+                                    eprintln!("presence: organ '{}' skipped even after auto-install: system: {:?}, runtime: {:?}", manifest.name, report.missing_required_system, report.missing_runtime);
+                                    return;
+                                }
+                            }
+                            crate::config::DependencyInstallPolicy::Ignore => {
+                                if !report.is_runnable {
+                                    return;
+                                }
+                            }
+                            crate::config::DependencyInstallPolicy::Warn => {
+                                if !report.is_runnable {
+                                    eprintln!("presence: ALARM - organ '{}' skipped (unmet dependencies): system: {:?}, runtime: {:?}", manifest.name, report.missing_required_system, report.missing_runtime);
+                                    return;
+                                } else if !report.disabled_tools.is_empty() || !report.disabled_features.is_empty() {
+                                    eprintln!("presence: ALARM - organ '{}' mounted with degraded features: disabled tools: {:?}, disabled features: {:?}", manifest.name, report.disabled_tools, report.disabled_features);
+                                }
+                            }
                         }
                     }
                     if !seen.contains(&manifest.name) {

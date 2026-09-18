@@ -14,6 +14,26 @@
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DependencyInstallPolicy {
+    Auto,
+    Ignore,
+    Warn,
+}
+
+impl Default for DependencyInstallPolicy {
+    fn default() -> Self {
+        DependencyInstallPolicy::Warn
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(default)]
+pub struct DependenciesCfg {
+    pub install_policy: DependencyInstallPolicy,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(default)]
 pub struct Config {
@@ -30,6 +50,8 @@ pub struct Config {
     pub heartbeat: HeartbeatCfg,
     pub senses: SensesCfg,
     pub lang: String,
+    #[serde(default)]
+    pub dependencies: DependenciesCfg,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -175,6 +197,7 @@ impl Default for Config {
             heartbeat: HeartbeatCfg::default(),
             senses: SensesCfg::default(),
             lang: "ru".into(),
+            dependencies: DependenciesCfg::default(),
         }
     }
 }
@@ -1002,4 +1025,21 @@ models:
         assert_eq!(c.base_url(), "https://yaml-ep.test/v1");
         assert_eq!(c.api_key(), "yaml_key");
     }
+    #[test]
+    fn parse_dependencies_install_policy_default_warn() {
+        let c = Config::default();
+        assert_eq!(c.dependencies.install_policy, DependencyInstallPolicy::Warn);
+    }
+
+    #[test]
+    fn parse_dependencies_install_policy_auto_and_ignore() {
+        let y_auto = "dependencies:\n  install_policy: auto\n";
+        let c_auto: Config = serde_yaml::from_str(y_auto).unwrap();
+        assert_eq!(c_auto.dependencies.install_policy, DependencyInstallPolicy::Auto);
+
+        let y_ignore = "dependencies:\n  install_policy: ignore\n";
+        let c_ignore: Config = serde_yaml::from_str(y_ignore).unwrap();
+        assert_eq!(c_ignore.dependencies.install_policy, DependencyInstallPolicy::Ignore);
+    }
 }
+

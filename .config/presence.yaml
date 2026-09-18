@@ -1,0 +1,44 @@
+# Presence Unified Runtime Configuration
+# Source of truth for models, paths, senses, limits, and organ dependency management.
+
+override_from_env: false
+lang: ru
+
+# Organ Dependency Management Policy
+# Options:
+#   - "warn": (Default) Mounts runnable organs; emits friction alerts/warnings for missing optional dependencies or unrunnable organs.
+#   - "auto": Automatically invokes the system package manager (Scoop / Nix / Guix) to install missing system dependencies upon mounting.
+#   - "ignore": Silently skips missing dependencies and degrades features without alerts.
+dependencies:
+  install_policy: warn
+
+# Hierarchical Fallback Model Stack
+models:
+  - name: deepseek/deepseek-chat
+    context_limit: 65536
+    max_output_tokens: 8192
+    capabilities:
+      tools: true
+      parallel_tool_calls: true
+      prompt_cache_key: true
+    endpoints:
+      - base_url: https://api.deepseek.com/v1
+        api_keys: []
+
+paths:
+  desk: .
+  workspace: .
+
+senses:
+  time: true
+  hearing: false
+  vision: false
+  proprioception: true
+  windows: true
+
+heartbeat:
+  interval_secs: 5
+  max_wakes: 0
+  cap_secs: 1200
+  max_alarms: 20
+  max_attempts: 3
