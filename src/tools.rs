@@ -1891,7 +1891,7 @@ print(f"ECHO: {args.msg}")
     }
 
     #[test]
-    fn test_typescript_organ_channel_execution() {
+    fn test_native_organ_channel_execution() {
         let discovered = discover_dynamic_tools();
         let channel_tool = discovered.iter().find(|d| d.manifest.name == "channel");
         assert!(channel_tool.is_some(), "channel organ must be discovered");

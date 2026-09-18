@@ -1,0 +1,74 @@
+name: ask
+version: 0.3.0
+manual: MANUAL.md
+type: rust
+description: Interactive user elicitation, confirmation gating, and structured interrogation organ
+author: hrkcz001
+license: Apache-2.0
+
+entrypoint:
+  windows: "organ-ask.exe"
+  linux: "organ-ask"
+
+compatibility:
+  triad: ">=0.3.0"
+
+permissions:
+  filesystem_read: true
+  filesystem_write: true
+
+tools:
+  - name: ask_question
+    description: Elicits structured choices from the active interlocutor via interactive multiple-choice selection or write-in response
+    parameters:
+      type: object
+      properties:
+        question:
+          type: string
+          description: Clear, unambiguous question text to present to the user
+        options:
+          type: array
+          items:
+            type: string
+          description: List of selectable option strings (minimum 2 options)
+        is_multi_select:
+          type: boolean
+          description: Whether the user can choose more than one option
+          default: false
+      required:
+        - question
+        - options
+
+  - name: ask_confirm
+    description: Requests explicit confirmation (Yes/No) from the user before proceeding with dangerous or irreversible actions
+    parameters:
+      type: object
+      properties:
+        prompt:
+          type: string
+          description: Description of the action requiring user approval
+      required:
+        - prompt
+
+  - name: ask_text
+    description: Solicits free-form text clarification or open write-in response from the active interlocutor
+    parameters:
+      type: object
+      properties:
+        prompt:
+          type: string
+          description: Prompt or inquiry message for the user
+        placeholder:
+          type: string
+          description: Optional default or placeholder input text
+      required:
+        - prompt
+
+senses:
+  - name: pending_questions
+    description: Senses pending user inquiries or awaiting inputs in active session
+
+slash_commands:
+  - name: ask
+    description: Solicit user clarification or prompt for interactive text input
+    tool: ask_text

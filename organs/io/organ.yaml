@@ -1,12 +1,25 @@
+author: "presence"
 name: io
 version: "0.3.0"
-description: "Physical input/output and filesystem manipulation organ"
+manual: MANUAL.md
+description: "Native pure-Rust physical input/output and filesystem manipulation organ"
 instructions: "Filesystem interaction. Use read_file, write_file, and list_files for file I/O operations."
-entrypoint: "io.ts"
-type: "typescript"
+entrypoint: "organ-io"
+type: "rust"
+
+permissions:
+  filesystem_read: true
+  filesystem_write: true
+  timeout_seconds: 15
+
+compatibility:
+  presence: "^0.3.0"
+  api_version: 1
+
 senses:
   - name: fs_changes
     description: "Recent modifications in workspace files"
+
 tools:
   - name: read_file
     description: "Read full text content of a file"
@@ -17,6 +30,7 @@ tools:
           type: string
           description: "Path to file to read"
       required: ["path"]
+
   - name: write_file
     description: "Write full text content to a file, auto-creating parent directories"
     parameters:
@@ -29,6 +43,7 @@ tools:
           type: string
           description: "File content to write"
       required: ["path", "content"]
+
   - name: list_files
     description: "List directory contents"
     parameters:
@@ -39,6 +54,7 @@ tools:
           description: "Directory path"
           default: "."
       required: []
+
 commands:
   - name: cat
     tool: read_file
@@ -46,6 +62,7 @@ commands:
   - name: ls
     tool: list_files
     description: "List directory files"
+
 stimuli:
   - name: disk_space_low
     description: "Emitted when free disk space falls below threshold (5 GB)"
@@ -57,10 +74,3 @@ stimuli:
     cadence_secs: 300
     action: "alert"
     target_agent: "mechanic"
-permissions:
-  filesystem_read: true
-  filesystem_write: true
-  timeout_seconds: 15
-compatibility:
-  presence: "^0.3.0"
-  api_version: 1
