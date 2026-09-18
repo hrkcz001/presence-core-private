@@ -6,7 +6,6 @@ organs:
   - io
   - plan
   - state
-  - monologue
   - channel
 cord:
   reflexes: active

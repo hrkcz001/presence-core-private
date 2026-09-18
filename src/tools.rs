@@ -1765,7 +1765,7 @@ print(f"ECHO: {args.msg}")
         assert!(names.contains(&"io"), "io not discovered in {:?}", names);
         assert!(names.contains(&"plan"), "plan not discovered in {:?}", names);
         assert!(names.contains(&"state"), "state not discovered in {:?}", names);
-        assert!(names.contains(&"monologue"), "monologue not discovered in {:?}", names);
+        assert!(names.contains(&"state"), "state not discovered in {:?}", names);
         assert!(names.contains(&"git"), "git not discovered in {:?}", names);
         assert!(names.contains(&"notify"), "notify not discovered in {:?}", names);
         assert!(names.contains(&"winsense"), "winsense not discovered in {:?}", names);

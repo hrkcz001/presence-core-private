@@ -5,7 +5,6 @@ organs:
   - io
   - plan
   - state
-  - monologue
   - channel
   - git
 cord:

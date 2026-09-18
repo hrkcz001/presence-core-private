@@ -4,7 +4,6 @@ role: Supreme Invariant Judge, Fault Arbiter & Emergency Safeguard
 model: .config/presence.yaml
 organs:
   - state
-  - monologue
   - io
   - git
 cord:

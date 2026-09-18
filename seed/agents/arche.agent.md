@@ -4,7 +4,6 @@ role: Ontological Prime Cause & Intentionality Driver of Presence
 model: .config/presence.yaml
 organs:
   - state
-  - monologue
   - plan
   - io
   - winsense
