@@ -1784,7 +1784,7 @@ print(f"ECHO: {args.msg}")
         assert!(tool_names.contains(&"write_file"), "write_file not in defs: {:?}", tool_names);
         assert!(tool_names.contains(&"plan_step"), "plan_step not in defs: {:?}", tool_names);
         assert!(tool_names.contains(&"pause_session"), "pause_session not in defs: {:?}", tool_names);
-        assert!(tool_names.contains(&"ponder"), "ponder not in defs: {:?}", tool_names);
+        assert!(tool_names.contains(&"snapshot"), "snapshot not in defs: {:?}", tool_names);
         assert!(tool_names.contains(&"vox_listen"), "vox_listen not in defs: {:?}", tool_names);
         assert!(tool_names.contains(&"send_reply"), "send_reply not in defs: {:?}", tool_names);
     }
