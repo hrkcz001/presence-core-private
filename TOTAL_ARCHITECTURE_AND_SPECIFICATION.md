@@ -318,3 +318,12 @@ stimuli:
 - `memory/quests.jsonl`: Prioritized goal stack for the Hermeneutic Circle.
 - `logs/friction.jsonl`: Mechanical failure strikes and anomaly telemetry.
 - `logs/ask/inquiries.jsonl`: Audit journal of all user confirmations and questions.
+
+### 8.5 Model Topology & Multi-Model Inference Strategy
+- **Current Baseline**: Configured in `.config/presence.yaml` via `deepseek-v4-flash` / `deepseek/deepseek-chat` (64k context, tool calling, prompt cache key).
+- **Architectural Question**:
+  - Small models (7B - 32B Qwen2.5-Coder, local vLLM) vs. Frontier models (Claude 3.7 / GPT-5-Astra).
+  - Can the strict 4-phase Hermeneutic Circle (`Observation` -> `Plan` -> `Verification` -> `Execution`) bridge the intelligence gap of smaller models?
+  - **Proposed Heterogeneous Routing**:
+    - *Routine Loop / Tools Execution*: Ultra-fast lightweight model (Qwen2.5-Coder-14B / DeepSeek-Flash).
+    - *Strategic Alignment & Invariant Arbitration*: Escalation to frontier model (Astra / Sonnet) strictly for Arbiter verdicts and Arche goal originations.
