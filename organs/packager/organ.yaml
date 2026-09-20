@@ -1,5 +1,6 @@
-name: packager
+﻿name: packager
 version: 0.3.0
+manual: MANUAL.md
 type: cli
 description: Universal package and organ manager supporting Scoop (SFSU) on Windows and Nix on Linux
 author: hrkcz001
@@ -78,6 +79,17 @@ tools:
           type: string
           description: Optional specific package to update
 
+  - name: packager_resolve
+    description: Automatically detect and resolve all missing system dependencies for a specified organ using the active system package manager (Scoop/Nix/Guix)
+    parameters:
+      type: object
+      properties:
+        organ:
+          type: string
+          description: Organ name to inspect and resolve missing dependencies for
+      required:
+        - organ
+
 senses:
   - name: outdated_packages
     description: Senses outdated packages or available updates
@@ -87,3 +99,14 @@ slash_commands:
   - name: pkg
     description: Manage system packages and organs via sfsu/scoop/nix
     tool: packager_search
+dependencies:
+  system:
+    - platform: windows
+      binary: scoop
+      optional: false
+    - platform: windows
+      binary: sfsu
+      optional: true
+    - platform: linux
+      any_of: ["nix", "guix"]
+      optional: false

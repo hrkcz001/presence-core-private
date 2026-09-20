@@ -1,0 +1,61 @@
+name: shell
+version: "0.3.0"
+summary: Bounded, sandboxed shell execution and task manager organ for Presence
+manual: MANUAL.md
+entrypoint:
+  windows: organ-shell.exe
+  linux: organ-shell
+  macos: organ-shell
+
+tools:
+  - name: exec_command
+    description: Run a shell command with strict timeout and bounded output buffer.
+    parameters:
+      type: object
+      required: [command]
+      properties:
+        command:
+          type: string
+          description: Command line to execute.
+        cwd:
+          type: string
+          description: Optional working directory.
+        timeout_secs:
+          type: integer
+          description: Execution timeout in seconds (default 30).
+  - name: spawn_background
+    description: Spawn an asynchronous background task.
+    parameters:
+      type: object
+      required: [command]
+      properties:
+        command:
+          type: string
+          description: Command line to execute in background.
+        task_id:
+          type: string
+          description: Unique task identifier.
+  - name: poll_task
+    description: Poll the status and output preview of a background task.
+    parameters:
+      type: object
+      required: [task_id]
+      properties:
+        task_id:
+          type: string
+          description: Unique task identifier.
+  - name: kill_task
+    description: Terminate a running background task.
+    parameters:
+      type: object
+      required: [task_id]
+      properties:
+        task_id:
+          type: string
+          description: Unique task identifier.
+
+stimuli:
+  - name: command_hung
+    description: Detects long-running or frozen shell tasks.
+    cadence_secs: 10
+    action: trip_timeout

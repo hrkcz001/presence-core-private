@@ -1,4 +1,4 @@
-//! Tool set v0 (PLAN §6). OpenAI tool definitions + executor.
+﻿//! Tool set v0 (PLAN §6). OpenAI tool definitions + executor.
 //! write_file is desk-scoped (step 15): paths resolve under the desk
 //! root, no escape. run_command is bounded: 30s timeout, output capped.
 //! Reads are unrestricted. Brain writes are runtime-owned, never here.
@@ -60,6 +60,26 @@ pub fn current_persona(ctx: &ToolCtx) -> String {
     }
     "arche".to_string()
 }
+/// Granular prerequisite requirements for an individual tool, sense, or command.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct OrganRequires {
+    #[serde(default)]
+    pub organs: Vec<OrganDep>,
+    #[serde(default)]
+    pub system: Vec<SystemDep>,
+}
+
+impl OrganRequires {
+    pub fn is_satisfied(&self, mounted_organs: &[String]) -> bool {
+        let dummy_deps = OrganDependencies {
+            runtime: None,
+            organs: self.organs.clone(),
+            system: self.system.clone(),
+        };
+        let report = dummy_deps.evaluate(mounted_organs);
+        report.is_runnable
+    }
+}
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct OrganToolDef {
     pub name: String,
@@ -67,6 +87,8 @@ pub struct OrganToolDef {
     pub description: String,
     #[serde(default)]
     pub parameters: Value,
+    #[serde(default)]
+    pub requires: Option<OrganRequires>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -76,6 +98,8 @@ pub struct OrganSenseDef {
     pub description: String,
     #[serde(default)]
     pub poll_mode: Option<String>,
+    #[serde(default)]
+    pub requires: Option<OrganRequires>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
@@ -110,20 +134,67 @@ pub struct OrganCompatibility {
 }
 
 
-/// Dependency on another Presence organ.
+/// Dependency on another Presence organ. Supports single name or disjunctive variant ("winsense || linsense" / any_of).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct OrganDep {
-    pub name: String,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub any_of: Vec<String>,
     #[serde(default)]
     pub optional: bool,
+    #[serde(default)]
+    pub platform: Option<String>,
+    #[serde(default)]
+    pub disables_tools: Vec<String>,
+    #[serde(default)]
+    pub disables_senses: Vec<String>,
 }
 
-/// Dependency on a host system binary (managed via Scoop or Nix/Guix).
+impl OrganDep {
+    pub fn candidates(&self) -> Vec<String> {
+        let mut res = Vec::new();
+        if let Some(n) = &self.name {
+            if n.contains("||") {
+                for part in n.split("||") {
+                    let trimmed = part.trim();
+                    if !trimmed.is_empty() {
+                        res.push(trimmed.to_string());
+                    }
+                }
+            } else if !n.trim().is_empty() {
+                res.push(n.trim().to_string());
+            }
+        }
+        for item in &self.any_of {
+            let trimmed = item.trim();
+            if !trimmed.is_empty() && !res.contains(&trimmed.to_string()) {
+                res.push(trimmed.to_string());
+            }
+        }
+        res
+    }
+
+    pub fn matches_current_platform(&self) -> bool {
+        if let Some(p) = &self.platform {
+            p.eq_ignore_ascii_case(std::env::consts::OS)
+        } else {
+            true
+        }
+    }
+}
+
+/// Dependency on a host system binary (managed via Scoop or Nix/Guix). Supports disjunctive variants ("sfsu || scoop || nix" / any_of).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct SystemDep {
-    pub binary: String,
+    #[serde(default)]
+    pub binary: Option<String>,
+    #[serde(default)]
+    pub any_of: Vec<String>,
     #[serde(default)]
     pub optional: bool,
+    #[serde(default)]
+    pub platform: Option<String>,
     #[serde(default)]
     pub scoop: Option<String>,
     #[serde(default)]
@@ -137,23 +208,63 @@ pub struct SystemDep {
 }
 
 impl SystemDep {
-    pub fn target_package(&self) -> Option<&str> {
+    pub fn candidates(&self) -> Vec<String> {
+        let mut res = Vec::new();
+        if let Some(b) = &self.binary {
+            if b.contains("||") {
+                for part in b.split("||") {
+                    let trimmed = part.trim();
+                    if !trimmed.is_empty() {
+                        res.push(trimmed.to_string());
+                    }
+                }
+            } else if !b.trim().is_empty() {
+                res.push(b.trim().to_string());
+            }
+        }
+        for item in &self.any_of {
+            let trimmed = item.trim();
+            if !trimmed.is_empty() && !res.contains(&trimmed.to_string()) {
+                res.push(trimmed.to_string());
+            }
+        }
+        res
+    }
+
+    pub fn matches_current_platform(&self) -> bool {
+        if let Some(p) = &self.platform {
+            p.eq_ignore_ascii_case(std::env::consts::OS)
+        } else {
+            true
+        }
+    }
+}
+
+impl SystemDep {
+    pub fn target_package(&self) -> Option<String> {
         #[cfg(windows)]
         {
-            self.scoop.as_deref().or(Some(&self.binary))
+            if let Some(s) = &self.scoop {
+                return Some(s.clone());
+            }
         }
         #[cfg(not(windows))]
         {
             if std::env::var("GUIX_ENVIRONMENT").is_ok() || which_cmd("guix") {
-                self.guix.as_deref().or(self.nix.as_deref()).or(Some(&self.binary))
-            } else {
-                self.nix.as_deref().or(self.guix.as_deref()).or(Some(&self.binary))
+                if let Some(g) = &self.guix {
+                    return Some(g.clone());
+                }
+            }
+            if let Some(n) = &self.nix {
+                return Some(n.clone());
             }
         }
+        self.candidates().into_iter().next()
     }
 
     pub fn install_hint(&self) -> String {
-        let pkg = self.target_package().unwrap_or(&self.binary);
+        let default_bin = "unknown".to_string();
+        let pkg = self.target_package().unwrap_or(default_bin);
         #[cfg(windows)]
         {
             format!("packager_install(package: \"{pkg}\") [host fallback: scoop install {pkg}]")
@@ -185,6 +296,8 @@ pub struct DependencyReport {
     pub is_runnable: bool,
     pub runtime_ok: bool,
     pub missing_runtime: Option<String>,
+    pub satisfied_organs: Vec<String>,
+    pub satisfied_binaries: Vec<String>,
     pub missing_required_organs: Vec<String>,
     pub missing_optional_organs: Vec<String>,
     pub missing_required_system: Vec<SystemDep>,
@@ -199,6 +312,8 @@ impl OrganDependencies {
             is_runnable: true,
             runtime_ok: true,
             missing_runtime: None,
+            satisfied_organs: Vec::new(),
+            satisfied_binaries: Vec::new(),
             missing_required_organs: Vec::new(),
             missing_optional_organs: Vec::new(),
             missing_required_system: Vec::new(),
@@ -216,20 +331,40 @@ impl OrganDependencies {
         }
 
         for od in &self.organs {
-            let present = mounted_organs.iter().any(|m| m.eq_ignore_ascii_case(&od.name));
-            if !present {
-                if od.optional {
-                    report.missing_optional_organs.push(od.name.clone());
+            if !od.matches_current_platform() {
+                continue;
+            }
+            let candidates = od.candidates();
+            let matched_organ = candidates.iter().find(|c| {
+                mounted_organs.iter().any(|m| m.eq_ignore_ascii_case(c))
+            });
+            if let Some(matched) = matched_organ {
+                report.satisfied_organs.push(matched.clone());
+            } else {
+                let display_name = if candidates.len() > 1 {
+                    candidates.join(" || ")
                 } else {
-                    report.missing_required_organs.push(od.name.clone());
+                    candidates.first().cloned().unwrap_or_else(|| "unknown".to_string())
+                };
+                if od.optional {
+                    report.disabled_tools.extend(od.disables_tools.clone());
+                    report.missing_optional_organs.push(display_name);
+                } else {
+                    report.missing_required_organs.push(display_name);
                     report.is_runnable = false;
                 }
             }
         }
 
         for sd in &self.system {
-            let present = which_cmd(&sd.binary);
-            if !present {
+            if !sd.matches_current_platform() {
+                continue;
+            }
+            let candidates = sd.candidates();
+            let matched_bin = candidates.iter().find(|c| which_cmd(c));
+            if let Some(matched) = matched_bin {
+                report.satisfied_binaries.push(matched.clone());
+            } else {
                 if sd.optional {
                     report.disabled_tools.extend(sd.disables_tools.clone());
                     report.disabled_features.extend(sd.disables_features.clone());
@@ -516,59 +651,18 @@ pub fn discover_dynamic_tools() -> Vec<DiscoveredTool> {
 }
 
 pub fn discover_manifests_in_dirs(dirs: &[PathBuf]) -> Vec<DiscoveredTool> {
-    let mut discovered = Vec::new();
-    let mut seen = std::collections::HashSet::new();
+    // Pass 1: Collect candidate manifests
+    let mut raw_candidates: Vec<(ToolManifest, PathBuf)> = Vec::new();
+    let mut seen_names = std::collections::HashSet::new();
 
-    let check_file = |manifest_path: &Path, dir: &Path, discovered: &mut Vec<DiscoveredTool>, seen: &mut std::collections::HashSet<String>| {
+    let check_candidate = |manifest_path: &Path, dir: &Path, candidates: &mut Vec<(ToolManifest, PathBuf)>, seen: &mut std::collections::HashSet<String>| {
         if manifest_path.is_file() {
             if let Ok(content) = std::fs::read_to_string(manifest_path) {
                 let clean_content = content.trim_start_matches('\u{feff}');
                 if let Ok(manifest) = serde_yaml::from_str::<ToolManifest>(clean_content) {
-                    if let Err(reason) = manifest.is_compatible() {
-                        eprintln!("presence: organ '{}' skipped (incompatible): {reason}", manifest.name);
-                        return;
-                    }
-                    if let Some(deps) = &manifest.dependencies {
-                        let seen_vec: Vec<String> = seen.iter().cloned().collect();
-                        let mut report = deps.evaluate(&seen_vec);
-
-                        let policy = cfg().dependencies.install_policy;
-                        match policy {
-                            crate::config::DependencyInstallPolicy::Auto => {
-                                if !report.is_runnable || !report.missing_required_system.is_empty() {
-                                    for dep in &report.missing_required_system {
-                                        let pkg_name = dep.target_package().unwrap_or(&dep.binary);
-                                        eprintln!("presence: auto-installing missing dependency '{pkg_name}' for organ '{}'...", manifest.name);
-                                        let _ = execute_package_manager("install", Some(pkg_name));
-                                    }
-                                    report = deps.evaluate(&seen_vec);
-                                }
-                                if !report.is_runnable {
-                                    eprintln!("presence: organ '{}' skipped even after auto-install: system: {:?}, runtime: {:?}", manifest.name, report.missing_required_system, report.missing_runtime);
-                                    return;
-                                }
-                            }
-                            crate::config::DependencyInstallPolicy::Ignore => {
-                                if !report.is_runnable {
-                                    return;
-                                }
-                            }
-                            crate::config::DependencyInstallPolicy::Warn => {
-                                if !report.is_runnable {
-                                    eprintln!("presence: ALARM - organ '{}' skipped (unmet dependencies): system: {:?}, runtime: {:?}", manifest.name, report.missing_required_system, report.missing_runtime);
-                                    return;
-                                } else if !report.disabled_tools.is_empty() || !report.disabled_features.is_empty() {
-                                    eprintln!("presence: ALARM - organ '{}' mounted with degraded features: disabled tools: {:?}, disabled features: {:?}", manifest.name, report.disabled_tools, report.disabled_features);
-                                }
-                            }
-                        }
-                    }
-                    if !seen.contains(&manifest.name) {
+                    if manifest.is_compatible().is_ok() && !seen.contains(&manifest.name) {
                         seen.insert(manifest.name.clone());
-                        discovered.push(DiscoveredTool {
-                            manifest,
-                            dir: dir.to_path_buf(),
-                        });
+                        candidates.push((manifest, dir.to_path_buf()));
                     }
                 }
             }
@@ -579,28 +673,68 @@ pub fn discover_manifests_in_dirs(dirs: &[PathBuf]) -> Vec<DiscoveredTool> {
         if !base.is_dir() {
             continue;
         }
-        // Check if base itself is a tool directory (e.g. scoop/apps/<app>/current)
-        check_file(&base.join("organ.yaml"), base, &mut discovered, &mut seen);
-        check_file(&base.join("presence-organ.yaml"), base, &mut discovered, &mut seen);
-        check_file(&base.join("tool.yaml"), base, &mut discovered, &mut seen);
-        check_file(&base.join("presence-tool.yaml"), base, &mut discovered, &mut seen);
-        check_file(&base.join("presence-tool.yaml"), base, &mut discovered, &mut seen);
+        check_candidate(&base.join("organ.yaml"), base, &mut raw_candidates, &mut seen_names);
+        check_candidate(&base.join("presence-organ.yaml"), base, &mut raw_candidates, &mut seen_names);
+        check_candidate(&base.join("tool.yaml"), base, &mut raw_candidates, &mut seen_names);
+        check_candidate(&base.join("presence-tool.yaml"), base, &mut raw_candidates, &mut seen_names);
 
-        // Check subdirectories
         let Ok(entries) = std::fs::read_dir(base) else {
             continue;
         };
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
-                check_file(&path.join("organ.yaml"), &path, &mut discovered, &mut seen);
-                check_file(&path.join("presence-organ.yaml"), &path, &mut discovered, &mut seen);
-                check_file(&path.join("tool.yaml"), &path, &mut discovered, &mut seen);
-                check_file(&path.join("presence-tool.yaml"), &path, &mut discovered, &mut seen);
-                check_file(&path.join("presence-tool.yaml"), &path, &mut discovered, &mut seen);
+                check_candidate(&path.join("organ.yaml"), &path, &mut raw_candidates, &mut seen_names);
+                check_candidate(&path.join("presence-organ.yaml"), &path, &mut raw_candidates, &mut seen_names);
+                check_candidate(&path.join("tool.yaml"), &path, &mut raw_candidates, &mut seen_names);
+                check_candidate(&path.join("presence-tool.yaml"), &path, &mut raw_candidates, &mut seen_names);
             }
         }
     }
+
+    // Pass 2: Evaluate dependencies against full mounted set
+    let mounted_names: Vec<String> = raw_candidates.iter().map(|(m, _)| m.name.clone()).collect();
+    let mut discovered = Vec::new();
+
+    for (manifest, dir) in raw_candidates {
+        if let Some(deps) = &manifest.dependencies {
+            let mut report = deps.evaluate(&mounted_names);
+            let policy = cfg().dependencies.install_policy;
+            match policy {
+                crate::config::DependencyInstallPolicy::Auto => {
+                    if !report.is_runnable || !report.missing_required_system.is_empty() {
+                        for dep in &report.missing_required_system {
+                            let default_pkg = "unknown".to_string();
+                            let pkg_name = dep.target_package().unwrap_or(default_pkg);
+                            eprintln!("presence: auto-installing missing dependency '{pkg_name}' for organ '{}'...", manifest.name);
+                            let _ = execute_package_manager("install", Some(&pkg_name));
+                        }
+                        report = deps.evaluate(&mounted_names);
+                    }
+                    if !report.is_runnable {
+                        eprintln!("presence: organ '{}' skipped even after auto-install: system: {:?}, runtime: {:?}", manifest.name, report.missing_required_system, report.missing_runtime);
+                        continue;
+                    }
+                }
+                crate::config::DependencyInstallPolicy::Ignore => {
+                    if !report.is_runnable {
+                        continue;
+                    }
+                }
+                crate::config::DependencyInstallPolicy::Warn => {
+                    if !report.is_runnable {
+                        eprintln!("presence: ALARM - organ '{}' skipped (unmet dependencies): system: {:?}, runtime: {:?}", manifest.name, report.missing_required_system, report.missing_runtime);
+                        continue;
+                    } else if !report.disabled_tools.is_empty() || !report.disabled_features.is_empty() {
+                        eprintln!("presence: ALARM - organ '{}' mounted with degraded features: disabled tools: {:?}, disabled features: {:?}", manifest.name, report.disabled_tools, report.disabled_features);
+                    }
+                }
+            }
+        }
+
+        discovered.push(DiscoveredTool { manifest, dir });
+    }
+
     discovered
 }
 
@@ -654,7 +788,7 @@ pub fn defs() -> Vec<Value> {
         json!({
             "type": "function",
             "function": {
-                "name": "manage_reflexes",
+                "name": "tune_reflexes",
                 "description": "Register, list, or remove runtime Cord reflexes. Cord reflexes execute deterministic sub-millisecond reactions (suppression, automated shell cleanup) upon vegetative stimuli trigger without spending LLM tokens.",
                 "parameters": {"type": "object", "properties": {
                     "action": {"type": "string", "enum": ["register", "list", "remove"], "description": "Action to perform"},
@@ -740,9 +874,12 @@ pub fn defs() -> Vec<Value> {
         }),
     ];
 
-    for dt in discover_dynamic_tools() {
+    let dynamic_tools = discover_dynamic_tools();
+    let mounted_organs: Vec<String> = dynamic_tools.iter().map(|d| d.manifest.name.clone()).collect();
+
+    for dt in &dynamic_tools {
         let disabled_tools = if let Some(deps) = &dt.manifest.dependencies {
-            let report = deps.evaluate(&[]);
+            let report = deps.evaluate(&mounted_organs);
             report.disabled_tools
         } else {
             Vec::new()
@@ -752,6 +889,11 @@ pub fn defs() -> Vec<Value> {
             for t in &dt.manifest.tools {
                 if disabled_tools.contains(&t.name) {
                     continue;
+                }
+                if let Some(req) = &t.requires {
+                    if !req.is_satisfied(&mounted_organs) {
+                        continue;
+                    }
                 }
                 if !list.iter().any(|existing| {
                     existing.pointer("/function/name").and_then(Value::as_str) == Some(&t.name)
@@ -1026,6 +1168,25 @@ pub fn execute_dynamic_tool(tool: &DiscoveredTool, args: &Value) -> String {
         c.env("PATH", build_agent_path());
         c
     };
+
+    // Forward scoped environment context strictly for what THIS organ declared in its dependencies
+    let mounted_organs: Vec<String> = discover_dynamic_tools().into_iter().map(|d| d.manifest.name).collect();
+    let (satisfied_organs, satisfied_binaries, disabled_features, disabled_tools) = if let Some(deps) = &manifest.dependencies {
+        let report = deps.evaluate(&mounted_organs);
+        (report.satisfied_organs, report.satisfied_binaries, report.disabled_features, report.disabled_tools)
+    } else {
+        (Vec::new(), Vec::new(), Vec::new(), Vec::new())
+    };
+
+    let organ_ctx = serde_json::json!({
+        "satisfied_organs": satisfied_organs,
+        "satisfied_binaries": satisfied_binaries,
+        "disabled_features": disabled_features,
+        "disabled_tools": disabled_tools
+    });
+    cmd.env("PRESENCE_ORGAN_CONTEXT", organ_ctx.to_string());
+    let idle_secs = crate::winsense::get_user_idle_seconds() as u64;
+    cmd.env("PRESENCE_USER_IDLE_SECS", idle_secs.to_string());
 
     if manifest.name == "webfetch" {
         let action = args.get("action").and_then(Value::as_str).unwrap_or("search");
@@ -1305,7 +1466,7 @@ pub fn execute(ctx: &ToolCtx, name: &str, args: &Value) -> String {
                 other => format!("Unknown tune_stimuli action: '{other}'. Expected: snooze, enable, disable, status"),
             }
         }
-        "manage_reflexes" => {
+        "tune_reflexes" => {
             let action = args.get("action").and_then(Value::as_str).unwrap_or("list");
             let id = args.get("id").and_then(Value::as_str);
             let stimulus = args.get("stimulus").and_then(Value::as_str).unwrap_or("");
@@ -1344,7 +1505,7 @@ pub fn execute(ctx: &ToolCtx, name: &str, args: &Value) -> String {
                 }
                 "register" => {
                     if stimulus.is_empty() {
-                        return "manage_reflexes error: 'stimulus' is required to register a reflex".to_string();
+                        return "tune_reflexes error: 'stimulus' is required to register a reflex".to_string();
                     }
                     let reflex_id = id
                         .map(String::from)
@@ -1362,21 +1523,21 @@ pub fn execute(ctx: &ToolCtx, name: &str, args: &Value) -> String {
                         created_at: now,
                     };
                     if let Err(e) = cord.add_or_update(r) {
-                        return format!("manage_reflexes error saving reflex: {e}");
+                        return format!("tune_reflexes error saving reflex: {e}");
                     }
                     format!("Successfully registered Cord reflex '{reflex_id}' for stimulus '{stimulus}' (action: {reflex_action}).")
                 }
                 "remove" => {
                     let Some(rid) = id else {
-                        return "manage_reflexes error: 'id' is required to remove a reflex".to_string();
+                        return "tune_reflexes error: 'id' is required to remove a reflex".to_string();
                     };
                     match cord.remove(rid) {
                         Ok(true) => format!("Successfully removed Cord reflex '{rid}'."),
                         Ok(false) => format!("Cord reflex '{rid}' not found."),
-                        Err(e) => format!("manage_reflexes error removing reflex: {e}"),
+                        Err(e) => format!("tune_reflexes error removing reflex: {e}"),
                     }
                 }
-                other => format!("Unknown manage_reflexes action: '{other}'. Expected: list, register, remove"),
+                other => format!("Unknown tune_reflexes action: '{other}'. Expected: list, register, remove"),
             }
         }
                         "read_file" => {
@@ -1865,9 +2026,9 @@ print(f"ECHO: {args.msg}")
 
 
     #[test]
-    fn test_manage_reflexes_execution() {
+    fn test_tune_reflexes_execution() {
         let (ctx, _g) = ctx();
-        let out_reg = execute(&ctx, "manage_reflexes", &serde_json::json!({
+        let out_reg = execute(&ctx, "tune_reflexes", &serde_json::json!({
             "action": "register",
             "id": "reflex:test:auto_clean",
             "stimulus": "workspace_bloat",
@@ -1877,13 +2038,13 @@ print(f"ECHO: {args.msg}")
         }));
         assert!(out_reg.contains("Successfully registered Cord reflex"), "{out_reg}");
 
-        let out_list = execute(&ctx, "manage_reflexes", &serde_json::json!({
+        let out_list = execute(&ctx, "tune_reflexes", &serde_json::json!({
             "action": "list"
         }));
         assert!(out_list.contains("reflex:test:auto_clean"), "{out_list}");
         assert!(out_list.contains("workspace_bloat"), "{out_list}");
 
-        let out_rem = execute(&ctx, "manage_reflexes", &serde_json::json!({
+        let out_rem = execute(&ctx, "tune_reflexes", &serde_json::json!({
             "action": "remove",
             "id": "reflex:test:auto_clean"
         }));
@@ -1930,9 +2091,41 @@ system:
         let report = deps.evaluate(&["io".to_string()]);
         assert!(!report.is_runnable);
         assert_eq!(report.missing_required_system.len(), 1);
-        assert_eq!(report.missing_required_system[0].binary, "nonexistent_required_tool_xyz");
+        assert_eq!(report.missing_required_system[0].binary.as_deref(), Some("nonexistent_required_tool_xyz"));
         assert_eq!(report.missing_optional_organs, vec!["winsense"]);
         assert!(report.disabled_tools.contains(&"submit_github".to_string()));
+    }
+
+    #[test]
+    fn test_disjunctive_dependencies_pass() {
+        let yaml = r#"
+organs:
+  - name: "winsense || linsense"
+    optional: false
+system:
+  - any_of: ["cargo", "nonexistent_binary_foo_bar"]
+    optional: false
+"#;
+        let deps: OrganDependencies = serde_yaml::from_str(yaml).unwrap();
+        // Since "winsense" is mounted and "cargo" is present on PATH, this evaluates to runnable
+        let report = deps.evaluate(&["winsense".to_string()]);
+        assert!(report.is_runnable);
+        assert!(report.missing_required_organs.is_empty());
+        assert!(report.missing_required_system.is_empty());
+    }
+
+    #[test]
+    fn test_disjunctive_dependencies_fail() {
+        let yaml = r#"
+organs:
+  - name: "winsense || linsense"
+    optional: false
+"#;
+        let deps: OrganDependencies = serde_yaml::from_str(yaml).unwrap();
+        // Neither winsense nor linsense mounted
+        let report = deps.evaluate(&["channel".to_string()]);
+        assert!(!report.is_runnable);
+        assert_eq!(report.missing_required_organs, vec!["winsense || linsense"]);
     }
 
     #[test]

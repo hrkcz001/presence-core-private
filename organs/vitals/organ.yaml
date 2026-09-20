@@ -1,0 +1,45 @@
+name: vitals
+version: "0.3.0"
+manual: MANUAL.md
+author: "hrkcz001"
+license: Apache-2.0
+description: "Native pure-Rust real-time system vitals, hardware metrics, and battery sensory organ"
+instructions: "Use vitals_summary to sample instant CPU, memory, and battery indicators."
+entrypoint: "organ-vitals.exe"
+type: "rust"
+
+permissions:
+  timeout_seconds: 5
+
+compatibility:
+  presence: "^0.3.0"
+  api_version: 1
+
+senses:
+  - name: system_vitals
+    description: "Instant CPU load percentage, RAM usage, and power supply metrics"
+
+tools:
+  - name: vitals_summary
+    description: "Sample instantaneous host system hardware vitals (CPU%, RAM%, Battery)"
+    parameters:
+      type: object
+      properties: {}
+      required: []
+
+stimuli:
+  - name: battery_critical
+    description: "Emitted when host battery charge drops below 15% on battery power"
+    cadence_secs: 60
+    action: "alert"
+    target_agent: "mechanic"
+  - name: cpu_throttle
+    description: "Emitted when host CPU load persistently exceeds 90%"
+    cadence_secs: 30
+    action: "alert"
+    target_agent: "mechanic"
+
+commands:
+  - name: vitals
+    tool: vitals_summary
+    description: "Sample host CPU, memory, and power telemetry"

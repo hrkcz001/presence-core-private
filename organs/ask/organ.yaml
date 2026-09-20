@@ -17,6 +17,12 @@ permissions:
   filesystem_read: true
   filesystem_write: true
 
+dependencies:
+  organs:
+    - any_of: ["winsense", "linsense"]
+      optional: true
+      disables_features: ["desktop_idle_telemetry"]
+
 tools:
   - name: ask_question
     description: Elicits structured choices from the active interlocutor via interactive multiple-choice selection or write-in response

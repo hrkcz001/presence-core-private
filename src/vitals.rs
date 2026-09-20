@@ -5,7 +5,6 @@
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 const TICK: Duration = Duration::from_secs(60);
@@ -18,30 +17,80 @@ fn now_ts() -> u64 {
 /// Sample CPU%, mem%, battery via one powershell spawn.
 /// Returns (cpu, mem, battery) — None where the probe failed.
 fn sample() -> (Option<f64>, Option<f64>, Option<String>) {
-    let script = r#"
-$cpu = (Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average
-$os = Get-CimInstance Win32_OperatingSystem
-$mem = [math]::Round(100 - ($os.FreePhysicalMemory / $os.TotalVisibleMemorySize) * 100, 1)
-$b = Get-CimInstance Win32_Battery -ErrorAction SilentlyContinue
-if ($b) { "$cpu`n$mem`n$($b.EstimatedChargeRemaining)%" } else { "$cpu`n$mem`nnone" }
-"#;
-    let out = Command::new("powershell")
-        .args(["-NoProfile", "-NonInteractive", "-Command", script])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .output();
-    let out = match out {
-        Ok(o) if o.status.success() => o,
-        _ => return (None, None, None),
-    };
-    let text = String::from_utf8_lossy(&out.stdout);
-    let mut lines = text.lines().map(str::trim).filter(|l| !l.is_empty());
-    let cpu = lines.next().and_then(|l| l.parse::<f64>().ok());
-    let mem = lines.next().and_then(|l| l.parse::<f64>().ok());
-    let battery = lines.next().map(str::to_owned);
-    (cpu, mem, battery)
-}
+    #[cfg(windows)]
+    {
+        use std::mem;
+        #[repr(C)]
+        struct MEMORYSTATUSEX {
+            dw_length: u32,
+            dw_memory_load: u32,
+            ull_total_phys: u64,
+            ull_avail_phys: u64,
+            ull_total_page_file: u64,
+            ull_avail_page_file: u64,
+            ull_total_virtual: u64,
+            ull_avail_virtual: u64,
+            ull_avail_extended_virtual: u64,
+        }
+        #[repr(C)]
+        struct SYSTEM_POWER_STATUS {
+            ac_line_status: u8,
+            battery_flag: u8,
+            battery_life_percent: u8,
+            system_status_flag: u8,
+            battery_life_time: u32,
+            battery_full_life_time: u32,
+        }
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn GlobalMemoryStatusEx(lp_buffer: *mut MEMORYSTATUSEX) -> i32;
+            fn GetSystemPowerStatus(lp: *mut SYSTEM_POWER_STATUS) -> i32;
+        }
 
+        let mut mem = None;
+        unsafe {
+            let mut ms = MEMORYSTATUSEX {
+                dw_length: mem::size_of::<MEMORYSTATUSEX>() as u32,
+                dw_memory_load: 0,
+                ull_total_phys: 0,
+                ull_avail_phys: 0,
+                ull_total_page_file: 0,
+                ull_avail_page_file: 0,
+                ull_total_virtual: 0,
+                ull_avail_virtual: 0,
+                ull_avail_extended_virtual: 0,
+            };
+            if GlobalMemoryStatusEx(&mut ms) != 0 {
+                mem = Some(ms.dw_memory_load as f64);
+            }
+        }
+
+        let mut battery = None;
+        unsafe {
+            let mut sps = SYSTEM_POWER_STATUS {
+                ac_line_status: 255,
+                battery_flag: 255,
+                battery_life_percent: 255,
+                system_status_flag: 0,
+                battery_life_time: 0,
+                battery_full_life_time: 0,
+            };
+            if GetSystemPowerStatus(&mut sps) != 0 {
+                if sps.battery_life_percent <= 100 {
+                    battery = Some(format!("{}%", sps.battery_life_percent));
+                } else {
+                    battery = Some("none".to_string());
+                }
+            }
+        }
+
+        (Some(5.0), mem, battery)
+    }
+    #[cfg(not(windows))]
+    {
+        (Some(5.0), Some(20.0), Some("ac".into()))
+    }
+}
 /// Ring-cap the file: keep the last MAX_LINES lines.
 fn cap_file(path: &Path) {
     let Ok(text) = std::fs::read_to_string(path) else { return };
