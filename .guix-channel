@@ -2,5 +2,5 @@
 (channel
   (version 0)
   (directory "guix")
-  (url "https://github.com/hrkcz001/presence.git")
+  (url "https://github.com/hrkcz001/presence-core-private")
   (branch "main"))
