@@ -327,3 +327,82 @@ stimuli:
   - **Proposed Heterogeneous Routing**:
     - *Routine Loop / Tools Execution*: Ultra-fast lightweight model (Qwen2.5-Coder-14B / DeepSeek-Flash).
     - *Strategic Alignment & Invariant Arbitration*: Escalation to frontier model (Astra / Sonnet) strictly for Arbiter verdicts and Arche goal originations.
+
+## 9. Tri-Modal Ontological Cycle (Jev System-1 + LLM System-2 + Reflex Engine)
+
+> **Core Strategic Paradigm**: The entire cognitive cycle of Presence Cortex is compressed from the previous 4-phase ReAct loop into exactly **Three Existential Moduses** grounded in Heideggerian ontology (*Dasein: Geworfenheit -> Verfallen -> Entwurf*).
+> 
+> Heavy autoregressive LLMs (System 2) are strictly quarantined to generative synthesis. Fast non-autoregressive decision models (**Jev** via RLCD calibrated probabilities) and spinal arcs (**Reflexes**) handle 90% of filtering and tool routing at 30ms latency and near-zero token cost.
+
+```
+                      ┌─────────────────────────────────────────────────────────┐
+                      │                 VEGETATIVE ORGANISM                     │
+                      │  • Hard filtering at somatic layer                      │
+                      │  • Stress/tunnel vision drops peripheral senses         │
+                      └────────────────────────────┬────────────────────────────┘
+                                                   │ Raw surviving senses
+                                                   ▼
+┌───────────────────────────────────────────────────────────────────────────────────────────────┐
+│ MODUS 1: GEWORFENHEIT (Заброшенность / Бытие-уже-в-мире)                                      │
+│ Engine: JEV System 1                                                                          │
+│ • Input: Filtered Senses from organism                                                        │
+│ • Step 1: Assigns calibrated priority scores (1..100) to each incoming sense                  │
+│ • Step 2: Evaluates dynamic threshold theta_focus based on global system entropy/friction     │
+│ • Output: S_attentive = { sense | priority(sense) >= theta_focus }                            │
+└──────────────────────────────────────────────┬────────────────────────────────────────────────┘
+                                               │ Attentive Senses
+                                               ▼
+┌───────────────────────────────────────────────────────────────────────────────────────────────┐
+│ MODUS 2: VERFALLEN (Бытие-при-сущем / Падение / Подручность)                                  │
+│ Engine: JEV System 1                                                                          │
+│ • Input: S_attentive + Ready-to-hand tool descriptors (Zuhandenheit)                          │
+│ • Step 1: Selects target tool T_action                                                        │
+│ • Step 2: Decides whether semantic projection (Entwurf) is required: needs_projection: noul   │
+│ • Step 3: Selects which senses to project forward with the tool into Modus 3                  │
+│ • Output: Tuple (T_action, S_projected, needs_projection)                                     │
+└──────────────────────────────────────────────┬────────────────────────────────────────────────┘
+                                               │
+                                               ▼
+┌───────────────────────────────────────────────────────────────────────────────────────────────┐
+│ MODUS 3: ENTWURF (Набрасывание / Бытие-вперед-себя / Исполнение)                             │
+│ Router: Cord/Reflex Arc + Fallback to Generative LLM (System 2)                               │
+│                                                                                               │
+│                   ┌──────────────────────────────────────┐                                    │
+│                   │ Decision Matrix in Dispatch Algorithm │                                    │
+│                   └──────────────────┬───────────────────┘                                    │
+│                                      │                                                        │
+│         ┌────────────────────────────┼────────────────────────────┐                           │
+│         ▼                            ▼                            ▼                           │
+│  [Case A: Routine Reflex]    [Case B: Open Projection]     [Case C: Missing Reflex]           │
+│  • needs_proj == false       • needs_proj == true          • needs_proj == false              │
+│  • Matching reflex exists    • Synthesize creative args    • NO matching reflex exists        │
+│  ───────────                 ───────────                   ───────────                        │
+│  Action: Execute Reflex Arc  Action: Call Generative LLM   Action: Call LLM to execute AND    │
+│  Latency: <1ms, 0 tokens     Latency: 1-3s, full tokens    crystallize new candidate reflex   │
+└───────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Detailed Invariants of the Three Moduses:
+
+#### Modus 1: Geworfenheit (Заброшенность / Бытие-уже-в-мире)
+- **Ontological Reality**: The agent finds itself already situated within an environment before conscious reflection begins.
+- **Somatic Pre-Gating**: The vegetative stem/organism suppresses non-critical senses when under stress, battery depletion, or high friction (simulating physiological tunnel vision).
+- **Jev Attention Sieve**:
+  - Jev scores every sense: `question: { id: "priority_<sense_id>", type: "score", min: 1, max: 100 }`.
+  - Jev determines the dynamic attention cutoff: `question: { id: "theta_focus", type: "score", min: 1, max: 100 }`.
+  - Only senses where `priority >= theta_focus` are admitted into conscious presence.
+
+#### Modus 2: Verfallen / Zuhandenheit (Присутствие / Бытие-при-сущем)
+- **Ontological Reality**: Absorbed engagement with available tools (*das Zeug*) and immediate circumstances.
+- **Jev Functional Selection**:
+  - `question: { id: "selected_tool", type: "choice", options: [available_tools] }`
+  - `question: { id: "needs_projection", type: "noul" }` (Does this action require creative token generation, or is it deterministic?).
+  - `question: { id: "projected_senses", type: "choice", options: [S_attentive] }` (Which aspects of the situation are relevant to this tool invocation?).
+
+#### Modus 3: Entwurf (Набрасывание / Бытие-вперед-себя / Взаимодействие)
+- **Clarification of Ontological Ambiguity**:
+  - If an action is deterministic (*Zuhandenheit* — hammer hitting a nail), it does **not** reach LLM; it is resolved via the spinal reflex arc in <1ms.
+  - When the situation demands genuine *Entwurf* (projecting future state, writing novel code, composing reasoning, resolving contradictory context), the generative LLM (System 2) is invoked with `(selected_tool, projected_senses)`.
+  - **Reflex Crystallization (Автоматическое рождение рефлексов)**:
+    - If `needs_projection == false` but no reflex exists in `memory/reflexes.json`, the LLM is invoked once to formulate the tool arguments **and simultaneously output a compiled reflex rule** (pattern + command template).
+    - If the reflex succeeds and repeats with identical structure, it crystallizes into the spinal cord, permanently removing that tool path from future LLM calls.
