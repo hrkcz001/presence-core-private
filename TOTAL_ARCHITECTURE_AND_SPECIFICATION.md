@@ -479,3 +479,38 @@ stimuli:
 │ • Output: Synthesized JSON arguments for the tool.                                      │
 └─────────────────────────────────────────────────────────────────────────────────────────┘
 ```
+
+## 9. Tri-Modal Ontological Cycle: Geworfenheit, Verfallen, Entwurf
+
+> **Canonical Ontological Invariant**: The cognitive cycle of Presence Cortex strictly embodies the three fundamental existential structures of Heidegger's *Dasein*:
+> 1. **Geworfenheit** (Заброшенность / Фактичность) — *JEV System-1*
+> 2. **Verfallen** (Падение / Бытие-при-мире / Поглощенность сущим) — *JEV System-1*
+> 3. **Entwurf** (Набрасывание / Бытие-вперед-себя / Проектирование смысла) — *LLM System-2*
+
+---
+
+### The Three Moduses in Technical Architecture
+
+#### Modus 1: Geworfenheit (Заброшенность / Фактичность) — *JEV System-1*
+- **Ontology**: Dasein always finds itself already thrown into an existing situation and context prior to reflection.
+- **Somatic Pre-Gating**: The vegetative stem (`stem.rs`) enforces hard byte caps per organ (`sense_output_max_bytes`, etc.). Under physiological stress (battery drain, friction spike), somatic tunnel vision drops low-tier senses.
+- **Jev Attention Sieve**:
+  - Jev receives surviving bounded senses.
+  - Scores each sense: `priority_<id>: score (1..100)`.
+  - Determines dynamic focus threshold: `theta_focus: score (1..100)`.
+  - Filters focus: $S_{attentive} = \{ s \mid priority(s) \ge \theta_{focus} \}$.
+
+#### Modus 2: Verfallen (Падение / Бытие-при-сущем / Поглощенность делами) — *JEV System-1*
+- **Ontology**: Dasein falls into and is absorbed by the immediate world of entities and everyday routines (*das Zeug*). It does not philosophize; it instinctively reaches for ready-to-hand tools.
+- **Jev Pragmatic Selection**:
+  - Jev takes $S_{attentive}$ and the ready-to-hand organ catalog (`organs/`).
+  - Chooses the immediate instrument: `selected_tool: choice`.
+  - Decides whether the tool can act automatically or requires projection: `needs_projection: noul`.
+  - Decides which senses to bundle forward: `projected_senses: choice[]`.
+  - If `needs_projection == false`: tool executes automatically with default parameters (0 LLM tokens, <1ms).
+
+#### Modus 3: Entwurf (Набрасывание / Бытие-вперед-себя / Проектирование возможностей) — *LLM System-2*
+- **Ontology**: When routine immersion fails to solve the situation, Dasein projects itself understandingly onto its future possibilities (*Sich-vorweg-sein*). It designs, anticipates, and creates meaning.
+- **Generative Synthesis**:
+  - Generative LLM (DeepSeek / Astra) receives `(selected_tool_schema, projected_senses, goal)`.
+  - The model does not pick tools (that was completed in Verfallen); it strictly projects the *semantic intention* into the concrete payload: synthesizes code, files, or shell commands to actualize the project.
