@@ -406,3 +406,76 @@ stimuli:
   - **Reflex Crystallization (Автоматическое рождение рефлексов)**:
     - If `needs_projection == false` but no reflex exists in `memory/reflexes.json`, the LLM is invoked once to formulate the tool arguments **and simultaneously output a compiled reflex rule** (pattern + command template).
     - If the reflex succeeds and repeats with identical structure, it crystallizes into the spinal cord, permanently removing that tool path from future LLM calls.
+
+## 9. Tri-Modal Ontological Cycle (Jev System-1 + Deliberative LLM + Spinal Reflexes)
+
+> **Strategic Directive**: The cognitive core is strictly divided into Three Ontological Moduses based on Heideggerian phenomenology (*Geworfenheit -> Zuhandenheit/Vorhandenheit -> Entwurf*), augmented with strict autonomic output bounds for Jev context protection.
+> 
+> *Correction on Reflexes*: Reflex crystallization is explicitly rejected as premature complexity. Spinal reflexes remain strictly static, pre-compiled safety invariants in `memory/reflexes.json` evaluated in the vegetative stem.
+
+---
+
+### Autonomic Budget Invariant (Jev Context Protection)
+- **Constraint**: Jev has a strict context limit (e.g. 32k tokens).
+- **Hard Limit Contract for Organs**:
+  - Every `organ.yaml` must explicitly declare `limits`:
+    - `sense_output_max_bytes`: Hard cap on sense snapshot payload.
+    - `stimulus_payload_max_bytes`: Hard cap on stimulus state.
+    - `tool_stdout_max_bytes`: Truncation boundary for tool output.
+  - **Somatic Gating in Vegetative Stem**:
+    - The stem dynamically calculates total payload: `sum(bytes(surviving_senses)) <= JEV_BUDGET_CAP`.
+    - If total payload exceeds threshold or if the host is under physiological stress (battery < 20%, thermal throttling, friction spike), the stem activates **tunnel vision**: non-essential senses are dropped or compressed into 1-line metadata summaries before reaching Modus 1.
+
+---
+
+### The Three Moduses: Pure Philosophical & Technical Architecture
+
+```
+                 ┌────────────────────────────────────────────────────────┐
+                 │                  VEGETATIVE STEM                       │
+                 │  • Enforces organ output bounds (hard byte caps)       │
+                 │  • Evaluates static spinal reflexes (<1ms, 0 tokens)   │
+                 │  • Applies tunnel vision under stress / budget pressure │
+                 └───────────────────────────┬────────────────────────────┘
+                                             │ Bounded Senses
+                                             ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│ MODUS 1: GEWORFENHEIT (Заброшенность / Фактичность)                                     │
+│ Engine: JEV System-1                                                                    │
+│ • State: The agent finds itself already situated within an environment.                 │
+│ • Step 1: Jev assigns calibrated priorities to surviving senses: priority(s) ∈ [1..100] │
+│ • Step 2: Jev determines dynamic attention threshold: theta_focus                      │
+│ • Output: S_attentive = { s | priority(s) >= theta_focus }                              │
+└────────────────────────────────────────────┬────────────────────────────────────────────┘
+                                             │ Focus of Attention
+                                             ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│ MODUS 2: ZUHANDENHEIT / VERFALLEN (Подручность / Бытие-при-сущем)                       │
+│ Engine: JEV System-1                                                                    │
+│ • State: Absorbed immersion with available tools (das Zeug).                            │
+│ • Step 1: Jev evaluates S_attentive against ready-to-hand tools in `organs/`.           │
+│ • Step 2: Jev selects the target tool: `selected_tool: choice`.                        │
+│ • Step 3: Jev decides if the tool requires input synthesis: `needs_input: noul`.        │
+│ • Step 4: If no tool needed, completes turn or stays idle.                              │
+│ • Output: (selected_tool, needs_input)                                                  │
+└────────────────────────────────────────────┬────────────────────────────────────────────┘
+                                             │
+                       ┌─────────────────────┴─────────────────────┐
+                       │ needs_input == false                      │ needs_input == true
+                       ▼                                           ▼
+          [Direct Tool Execution]                     [MODUS 3: VORHANDENHEIT / ENTWURF]
+          Zero LLM tokens, pure binary                Breakdown of ready-to-hand fluency.
+          invocation with default args.               Tool becomes an explicit object
+                                                      requiring conscious deliberation.
+                                                                   │
+                                                                   ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│ MODUS 3: VORHANDENHEIT / DELIBERATION (Наличность / Осознанное наведение аргументов)   │
+│ Engine: Generative LLM (System-2: DeepSeek / Astra)                                     │
+│ • Ontological Meaning: The tool is no longer invisible/automatic. It is "present-at-    │
+│   hand" (Vorhanden). The model must reflect, read the schema, and construct the precise │
+│   input parameters (Entwurf of the action's target state).                             │
+│ • Input: (selected_tool_schema, S_attentive, goal)                                     │
+│ • Output: Synthesized JSON arguments for the tool.                                      │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+```
