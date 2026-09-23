@@ -514,3 +514,10 @@ stimuli:
 - **Generative Synthesis**:
   - Generative LLM (DeepSeek / Astra) receives `(selected_tool_schema, projected_senses, goal)`.
   - The model does not pick tools (that was completed in Verfallen); it strictly projects the *semantic intention* into the concrete payload: synthesizes code, files, or shell commands to actualize the project.
+
+#### Psychosomatic Feedback: Downward Attunement (Befindlichkeit / Stimmung)
+- **Top-Down Biological Signal**: Modus 2 (*Verfallen*) does not merely select tools; it extracts and projects **psychosomatic tags / keywords** downward into the Vegetative Stem (`stem.rs`).
+- **Function**:
+  - Modulates somatic pulse: adjusts heartbeat cadence (`current_interval` 5s -> 1s in alarm/hyper-focus, or 30s in relaxed monitoring).
+  - Tunes somatic pre-filters: alters which senses are prioritized in Modus 1 during subsequent iterations (e.g. tag `code_refactor` prioritizes git drift and memory, suppressing window titles).
+  - Embodying Heidegger's *Befindlichkeit* (расположенность / настроенность): the vegetative state of the organism is actively tuned by its cognitive involvement in the world.
